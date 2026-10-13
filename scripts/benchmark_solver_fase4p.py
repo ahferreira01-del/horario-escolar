@@ -68,7 +68,9 @@ def run_benchmark(sizes: list[int], time_limit: int) -> dict:
                 report={"engine":engine,"elapsed_seconds":round(perf_counter()-started,3),
                         "validation_ok":False,"error":type(exc).__name__ + ": " + str(exc)}
             result_set.append(report)
-        comparable=all(x.get("validation_ok") for x in result_set)
+        # Duas execuções sem solução NÃO representam paridade de cobertura.
+        comparable=all(x.get("validation_ok") and x.get("result") in ("complete","partial")
+                       for x in result_set)
         cases.append({
             "schools":2,"classes":size,"teachers":size//2,
             "required_lessons":2*size,"profile":"equilibrado",
