@@ -14,7 +14,7 @@ BASE = os.environ.get("HI_BROWSER_URL", "http://127.0.0.1:3000")
 EMAIL = os.environ.get("HI_BROWSER_ADMIN_EMAIL", "admin-e2e@example.com")
 PASSWORD = os.environ.get("HI_BROWSER_ADMIN_PASSWORD")
 
-def main():
+def main(after_preview=None):
     if not PASSWORD:
         raise RuntimeError("HI_BROWSER_ADMIN_PASSWORD é obrigatória para teste descartável.")
     if urlsplit(BASE).hostname not in ("127.0.0.1", "localhost"):
@@ -104,6 +104,11 @@ def main():
             expect(page.get_by_text("Prévia calculada. Verifique pendências e limitações abaixo.")).to_be_visible(timeout=45000)
             expect(page.locator(".card").filter(has_text="Aulas distribuídas").locator(".metric")).to_have_text("1 aulas")
             expect(page.get_by_text("Cobertura completa")).to_be_visible()
+            if after_preview is not None:
+                after_preview(page, {"organization": org, "director_email": email,
+                                     "director_password": secret, "school": school,
+                                     "teacher": teacher, "subject": subject,
+                                     "class": klass, "year": 2028})
             print("SCHOOL_BROWSER_PASSED: convite, escopo do admin, escola, professor, disponibilidade, turma, atribuição e prévia.")
         finally:
             browser.close()
