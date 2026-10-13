@@ -74,6 +74,45 @@ curl --fail --silent --show-error https://SEU-DOMINIO/api/ready
 - Rollback **somente do código** por tag/imagem assinada e aprovada. Migrações destrutivas exigem plano de recuperação específico; trocar uma imagem não reverte schema. Verificar compatibilidade da versão antiga com dados/DDL novos antes da operação.
 - Definir e registrar RPO/RTO e plano de resposta a incidentes, revogação de credenciais e troca de chave JWT em caso de vazamento.
 
+### Ferramentas manuais de backup e restauração (não são agenda automática)
+
+Foram acrescentados dois scripts operacionais para acelerar a preparação do
+plano de recuperação. **Eles não foram executados contra um ambiente real
+e não significam backup operacional.**
+
+- `ops/backup_encrypted.sh`: exige `age`, Docker Compose e um
+  `HI_BACKUP_DIR` absoluto, existente e **fora do repositório**, destinado
+  a armazenamento montado/replicado fora do servidor. Transmite `pg_dump`
+  diretamente ao criptografador `age` via pipe, sem gravar dump legível no
+  host. Grava arquivo cifrado com permissões 600 e checksum.
+- `ops/restore_drill.sh`: exige chave privada de recuperação e confirmação
+  `HI_RESTORE_DRILL_CONFIRM=ISOLATED_HOST_ONLY`. Restaura **somente** em
+  um banco extra `horario_restore_drill`, que não pode existir antes da
+  operação, verifica migração 0003 e FORCE RLS nas tabelas críticas, e
+  remove esse banco temporário apenas se a checagem passar.
+
+Uso ilustrativo após preparar infraestrutura e chaves age **fora do servidor
+de aplicação, por equipe autorizada**:
+
+```bash
+# Backup manual em destino cifrado/offsite — no host da instância fonte
+HI_AGE_RECIPIENT="age1CHAVE_PUBLICA_DO_DESTINATARIO" \
+HI_BACKUP_DIR="/mnt/backup-externo" bash ops/backup_encrypted.sh
+
+# Drill em OUTRO host de recuperação isolado, com acesso ao arquivo e chave
+HI_RESTORE_DRILL_CONFIRM=ISOLATED_HOST_ONLY \
+HI_AGE_IDENTITY_FILE="/srv/secrets/age-identity.txt" \
+HI_BACKUP_FILE="/mnt/backup-externo/ARQUIVO.pgdump.age" \
+bash ops/restore_drill.sh
+```
+
+**Atenção:** o teste de sintaxe automatizado não faz recuperação real; a
+restauração precisa ser comprovada manualmente, com prova documentada de
+acesso pela conta runtime, políticas RLS, aplicação e métricas RPO/RTO.
+É proibido guardar a chave privada no repositório, no próprio arquivo
+de backup ou no CI público. Não agendar backups antes de validar a
+retenção, a cópia externa e o tratamento de dados sob a LGPD.
+
 ## 6. Limitações importantes
 - A infraestrutura acima **não foi implantada**, nem foi conferido DNS/SSL/SMTP real, política de backup, restore, portas/firewall ou capacidade do servidor.
 - CP-SAT experimental continua DESATIVADO na API; SciPy/HiGHS é o motor operacional.
