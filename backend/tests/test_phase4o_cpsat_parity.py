@@ -38,7 +38,10 @@ def _compare(dataset, count):
         result=all_grid(deepcopy(dataset),engine=engine)
         assert result["total_assigned"]==count,(engine,result)
         assert validate_solution(dataset,result["assignments"])==[],(engine,result)
-        assert len(result["pending"])==result["result"].count("partial") * len(result["pending"]) or result["result"]=="complete"
+        if count==sum(d["lessons"] for d in dataset["demands"]):
+            assert result["result"]=="complete" and not result["pending"]
+        else:
+            assert result["result"]=="partial" and result["pending"]
         if engine=="cpsat":
             assert "CP-SAT" in result["optimizer"]
         else:
