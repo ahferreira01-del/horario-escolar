@@ -127,6 +127,12 @@ jobs:
           HI_BROWSER_ADMIN_EMAIL: admin-e2e@example.com
           HI_BROWSER_ADMIN_PASSWORD: Senha-Teste-Homologacao-123!
         run: python scripts/smoke_browser_fase4h.py
+      - name: Fluxo escolar de ponta a ponta no Chromium e PostgreSQL
+        env:
+          HI_BROWSER_URL: http://127.0.0.1:3000
+          HI_BROWSER_ADMIN_EMAIL: admin-e2e@example.com
+          HI_BROWSER_ADMIN_PASSWORD: Senha-Teste-Homologacao-123!
+        run: python scripts/smoke_browser_school_fase4j.py
       - name: Coletar logs em caso de falha
         if: failure()
         run: |
