@@ -20,6 +20,8 @@ def test_compose_production_no_public_db_or_api_ports(tmp_path):
         "HI_DB_OWNER_URL":f"postgresql+psycopg://horario_owner:{'A'*48}@db:5432/horario",
         "HI_DB_RUNTIME_URL":f"postgresql+psycopg://horario_runtime:{'B'*48}@db:5432/horario",
         "HI_SESSION_SECRET":"C"*64,
+        "HI_REDIS_PASSWORD":"D"*48,
+        "HI_AUTH_REDIS_URL":"redis://:"+"D"*48+"@redis:6379/0",
         "HI_SMTP_HOST":"smtp.escolas-teste.org",
         "HI_SMTP_PORT":"587",
         "HI_SMTP_USER":"smtp-user",
@@ -36,8 +38,8 @@ def test_compose_production_no_public_db_or_api_ports(tmp_path):
     ],capture_output=True,text=True,timeout=30)
     assert p.returncode==0, p.stderr[:1000]
     services=json.loads(p.stdout)["services"]
-    assert set(services)=={"db","migrate","api","web","edge"}
-    for name in ("db","migrate","api","web"):
+    assert set(services)=={"db","migrate","redis","api","web","edge"}
+    for name in ("db","migrate","redis","api","web"):
         assert "ports" not in services[name],name
     edge=services["edge"]
     ports={str(p["published"]) for p in edge["ports"]}
@@ -47,4 +49,7 @@ def test_compose_production_no_public_db_or_api_ports(tmp_path):
     assert services["api"]["environment"]["DATABASE_URL"].split("://")[1].startswith("horario_runtime:")
     assert services["migrate"]["environment"]["DATABASE_URL"].split("://")[1].startswith("horario_owner:")
     assert "healthcheck" in services["api"]
+    assert "healthcheck" in services["redis"]
+    assert services["api"]["depends_on"]["redis"]["condition"]=="service_healthy"
+    assert "AUTH_RATE_LIMIT_REDIS_URL" in services["api"]["environment"]
     assert services["web"]["depends_on"]["api"]["condition"]=="service_healthy"
