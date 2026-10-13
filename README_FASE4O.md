@@ -11,7 +11,8 @@
   de paridade, em vez de ignorar a integração por pacote ausente.
 - `backend/tests/test_phase4o_cpsat_parity.py`: verifica OR-Tools real,
   objetivos fracionários, disponibilidade exata, limites de recursos,
-  deslocamento direcional, manutenção do motor padrão e cenário de seis turmas
+  deslocamento direcional, cargas semanais em minutos com pesos fracionários,
+  manutenção do motor padrão e cenário de seis turmas
   em duas escolas com professores compartilhados e laboratório.
 - `backend/tests/test_phase4l_multischool_fixture.py`: fixture de múltiplas
   unidades reutilizável por ambos os motores.
