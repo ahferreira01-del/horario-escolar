@@ -111,3 +111,14 @@ def test_directional_school_travel_in_both_engines(gap,expected):
 def test_default_engine_stays_milp():
     result=all_grid(_dataset())
     assert "MILP" in result["optimizer"]
+
+
+def test_cpsat_multischool_shared_teachers_lab():
+    # A mesma fixture utilizada para homologar MILP na Fase 4L.
+    from test_phase4l_multischool_fixture import multischool_fixture
+    dataset=multischool_fixture()
+    result=all_grid(deepcopy(dataset),engine="cpsat")
+    assert result["result"]=="complete",result
+    assert result["total_required"]==result["total_assigned"]==6
+    assert validate_solution(dataset,result["assignments"])==[]
+    assert {row["school_id"] for row in result["assignments"]}=={"Centro","Norte"}
