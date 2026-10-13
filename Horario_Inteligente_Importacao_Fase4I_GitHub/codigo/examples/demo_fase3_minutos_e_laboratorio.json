@@ -1,0 +1,440 @@
+{
+  "organization_id": "exemplo_rede",
+  "mode": "mixed",
+  "profile": "equilibrado",
+  "time_limit": 8,
+  "schools": {
+    "escola_centro": {
+      "organization_id": "exemplo_rede"
+    }
+  },
+  "classes": {
+    "6A": {
+      "school_id": "escola_centro",
+      "students": 20,
+      "slots": [
+        {
+          "day": "Seg",
+          "order": 1,
+          "start": "07:10",
+          "end": "07:55",
+          "shift": "manha"
+        },
+        {
+          "day": "Seg",
+          "order": 2,
+          "start": "07:55",
+          "end": "08:40",
+          "shift": "manha"
+        },
+        {
+          "day": "Seg",
+          "order": 3,
+          "start": "09:00",
+          "end": "09:45",
+          "shift": "manha"
+        },
+        {
+          "day": "Seg",
+          "order": 4,
+          "start": "09:55",
+          "end": "10:40",
+          "shift": "manha"
+        },
+        {
+          "day": "Ter",
+          "order": 1,
+          "start": "07:10",
+          "end": "07:55",
+          "shift": "manha"
+        },
+        {
+          "day": "Ter",
+          "order": 2,
+          "start": "07:55",
+          "end": "08:40",
+          "shift": "manha"
+        },
+        {
+          "day": "Ter",
+          "order": 3,
+          "start": "09:00",
+          "end": "09:45",
+          "shift": "manha"
+        },
+        {
+          "day": "Ter",
+          "order": 4,
+          "start": "09:55",
+          "end": "10:40",
+          "shift": "manha"
+        },
+        {
+          "day": "Qua",
+          "order": 1,
+          "start": "07:10",
+          "end": "07:55",
+          "shift": "manha"
+        },
+        {
+          "day": "Qua",
+          "order": 2,
+          "start": "07:55",
+          "end": "08:40",
+          "shift": "manha"
+        },
+        {
+          "day": "Qua",
+          "order": 3,
+          "start": "09:00",
+          "end": "09:45",
+          "shift": "manha"
+        },
+        {
+          "day": "Qua",
+          "order": 4,
+          "start": "09:55",
+          "end": "10:40",
+          "shift": "manha"
+        },
+        {
+          "day": "Qui",
+          "order": 1,
+          "start": "07:10",
+          "end": "07:55",
+          "shift": "manha"
+        },
+        {
+          "day": "Qui",
+          "order": 2,
+          "start": "07:55",
+          "end": "08:40",
+          "shift": "manha"
+        },
+        {
+          "day": "Qui",
+          "order": 3,
+          "start": "09:00",
+          "end": "09:45",
+          "shift": "manha"
+        },
+        {
+          "day": "Qui",
+          "order": 4,
+          "start": "09:55",
+          "end": "10:40",
+          "shift": "manha"
+        },
+        {
+          "day": "Sex",
+          "order": 1,
+          "start": "07:10",
+          "end": "07:55",
+          "shift": "manha"
+        },
+        {
+          "day": "Sex",
+          "order": 2,
+          "start": "07:55",
+          "end": "08:40",
+          "shift": "manha"
+        },
+        {
+          "day": "Sex",
+          "order": 3,
+          "start": "09:00",
+          "end": "09:45",
+          "shift": "manha"
+        },
+        {
+          "day": "Sex",
+          "order": 4,
+          "start": "09:55",
+          "end": "10:40",
+          "shift": "manha"
+        }
+      ]
+    },
+    "7B": {
+      "school_id": "escola_centro",
+      "students": 25,
+      "slots": [
+        {
+          "day": "Seg",
+          "order": 1,
+          "start": "07:10",
+          "end": "07:55",
+          "shift": "manha"
+        },
+        {
+          "day": "Seg",
+          "order": 2,
+          "start": "07:55",
+          "end": "08:40",
+          "shift": "manha"
+        },
+        {
+          "day": "Seg",
+          "order": 3,
+          "start": "09:00",
+          "end": "09:45",
+          "shift": "manha"
+        },
+        {
+          "day": "Seg",
+          "order": 4,
+          "start": "09:55",
+          "end": "10:40",
+          "shift": "manha"
+        },
+        {
+          "day": "Ter",
+          "order": 1,
+          "start": "07:10",
+          "end": "07:55",
+          "shift": "manha"
+        },
+        {
+          "day": "Ter",
+          "order": 2,
+          "start": "07:55",
+          "end": "08:40",
+          "shift": "manha"
+        },
+        {
+          "day": "Ter",
+          "order": 3,
+          "start": "09:00",
+          "end": "09:45",
+          "shift": "manha"
+        },
+        {
+          "day": "Ter",
+          "order": 4,
+          "start": "09:55",
+          "end": "10:40",
+          "shift": "manha"
+        },
+        {
+          "day": "Qua",
+          "order": 1,
+          "start": "07:10",
+          "end": "07:55",
+          "shift": "manha"
+        },
+        {
+          "day": "Qua",
+          "order": 2,
+          "start": "07:55",
+          "end": "08:40",
+          "shift": "manha"
+        },
+        {
+          "day": "Qua",
+          "order": 3,
+          "start": "09:00",
+          "end": "09:45",
+          "shift": "manha"
+        },
+        {
+          "day": "Qua",
+          "order": 4,
+          "start": "09:55",
+          "end": "10:40",
+          "shift": "manha"
+        },
+        {
+          "day": "Qui",
+          "order": 1,
+          "start": "07:10",
+          "end": "07:55",
+          "shift": "manha"
+        },
+        {
+          "day": "Qui",
+          "order": 2,
+          "start": "07:55",
+          "end": "08:40",
+          "shift": "manha"
+        },
+        {
+          "day": "Qui",
+          "order": 3,
+          "start": "09:00",
+          "end": "09:45",
+          "shift": "manha"
+        },
+        {
+          "day": "Qui",
+          "order": 4,
+          "start": "09:55",
+          "end": "10:40",
+          "shift": "manha"
+        },
+        {
+          "day": "Sex",
+          "order": 1,
+          "start": "07:10",
+          "end": "07:55",
+          "shift": "manha"
+        },
+        {
+          "day": "Sex",
+          "order": 2,
+          "start": "07:55",
+          "end": "08:40",
+          "shift": "manha"
+        },
+        {
+          "day": "Sex",
+          "order": 3,
+          "start": "09:00",
+          "end": "09:45",
+          "shift": "manha"
+        },
+        {
+          "day": "Sex",
+          "order": 4,
+          "start": "09:55",
+          "end": "10:40",
+          "shift": "manha"
+        }
+      ]
+    }
+  },
+  "teachers": {
+    "paulo": {
+      "organization_id": "exemplo_rede",
+      "availability": [
+        {
+          "day": "Seg",
+          "start": "07:00",
+          "end": "11:00"
+        },
+        {
+          "day": "Ter",
+          "start": "07:00",
+          "end": "11:00"
+        },
+        {
+          "day": "Qua",
+          "start": "07:00",
+          "end": "11:00"
+        },
+        {
+          "day": "Qui",
+          "start": "07:00",
+          "end": "11:00"
+        },
+        {
+          "day": "Sex",
+          "start": "07:00",
+          "end": "11:00"
+        }
+      ],
+      "weekly_limit": 10,
+      "daily_limits": {
+        "Seg": 2,
+        "Ter": 2,
+        "Qua": 2,
+        "Qui": 2,
+        "Sex": 2
+      }
+    },
+    "maria": {
+      "organization_id": "exemplo_rede",
+      "availability": [
+        {
+          "day": "Seg",
+          "start": "07:00",
+          "end": "11:00"
+        },
+        {
+          "day": "Ter",
+          "start": "07:00",
+          "end": "11:00"
+        },
+        {
+          "day": "Qua",
+          "start": "07:00",
+          "end": "11:00"
+        },
+        {
+          "day": "Qui",
+          "start": "07:00",
+          "end": "11:00"
+        },
+        {
+          "day": "Sex",
+          "start": "07:00",
+          "end": "11:00"
+        }
+      ],
+      "weekly_limit": 10,
+      "daily_limits": {
+        "Seg": 2,
+        "Ter": 2,
+        "Qua": 2,
+        "Qui": 2,
+        "Sex": 2
+      }
+    }
+  },
+  "resources": {
+    "laboratorio": {
+      "school_id": "escola_centro",
+      "max_groups": 1,
+      "max_students": 30,
+      "availability": [
+        {
+          "day": "Seg",
+          "start": "07:00",
+          "end": "11:00"
+        },
+        {
+          "day": "Ter",
+          "start": "07:00",
+          "end": "11:00"
+        },
+        {
+          "day": "Qua",
+          "start": "07:00",
+          "end": "11:00"
+        },
+        {
+          "day": "Qui",
+          "start": "07:00",
+          "end": "11:00"
+        },
+        {
+          "day": "Sex",
+          "start": "07:00",
+          "end": "11:00"
+        }
+      ]
+    }
+  },
+  "demands": [
+    {
+      "class_id": "6A",
+      "teacher_id": "paulo",
+      "subject": "Matemática",
+      "unit": "minutes",
+      "target_minutes": 250,
+      "min_minutes": 250,
+      "max_minutes": 275,
+      "lessons": 1,
+      "max_consecutive": 2
+    },
+    {
+      "class_id": "7B",
+      "teacher_id": "maria",
+      "subject": "Ciências",
+      "unit": "lessons",
+      "lessons": 3,
+      "max_consecutive": 2,
+      "resource_id": "laboratorio"
+    }
+  ],
+  "travel_minutes": {}
+}

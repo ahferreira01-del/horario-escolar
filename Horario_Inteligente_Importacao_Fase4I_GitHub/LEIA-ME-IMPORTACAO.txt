@@ -1,0 +1,24 @@
+HORÁRIO INTELIGENTE — ENVIO DA FASE 4I PARA GITHUB
+
+1. Instale Git for Windows caso ainda não possua: https://git-scm.com/download/win
+2. Extraia TODO este arquivo ZIP em uma pasta no computador.
+3. Abra o PowerShell nessa pasta e execute:
+     powershell -NoProfile -ExecutionPolicy Bypass -File .\publicar-no-github.ps1
+4. Revise a lista de arquivos, confirme que o código pode ficar público e digite ENVIAR.
+5. O Git poderá solicitar autenticação na sua conta GitHub.
+6. Abra o pull request de revisão:
+     https://github.com/ahferreira01-del/horario-escolar/pull/2
+7. Confira o GitHub Actions:
+     https://github.com/ahferreira01-del/horario-escolar/actions
+
+O SCRIPT NÃO altera a branch main e NÃO faz merge. Ele envia somente para
+development/fase4i-homologacao.
+
+ANTES DE CONFIRMAR: o repositório atualmente é PÚBLICO. Não inclua
+dados de escolas reais, senhas, chaves, arquivos .env ou bancos locais.
+
+A aplicação ainda não é homologada para produção. O CI com PostgreSQL,
+RLS, Next.js e testes de concorrência precisa ser efetivamente executado.
+
+Se ocorrer uma falha de internet ou autenticação, o script não declara
+sucesso. Os arquivos ficam disponíveis na pasta repositorio-github/.
