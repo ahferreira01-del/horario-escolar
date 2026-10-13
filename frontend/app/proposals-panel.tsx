@@ -8,8 +8,8 @@ type Proposal = {
  created_at:string;justification:string|null;decision_note:string|null;published:boolean;
 };
 
-export default function ProposalsPanel({prefix,yearId,csrf,canRead,canCreate,canSubmit,canApprove,profile}:{
- prefix:string;yearId:string;csrf:string;canRead:boolean;canCreate:boolean;canSubmit:boolean;canApprove:boolean;profile:string;
+export default function ProposalsPanel({prefix,yearId,currentUserId,csrf,canRead,canCreate,canSubmit,canApprove,profile}:{
+ prefix:string;yearId:string;currentUserId:string;csrf:string;canRead:boolean;canCreate:boolean;canSubmit:boolean;canApprove:boolean;profile:string;
 }) {
  const [items,setItems]=useState<Proposal[]>([]);
  const [reason,setReason]=useState("");
@@ -48,7 +48,7 @@ export default function ProposalsPanel({prefix,yearId,csrf,canRead,canCreate,can
       <a className="secondary" href={`${prefix}/proposals/${p.id}/export.csv`} download={`proposta-${p.id}.csv`}>CSV</a>
       {p.status==="draft"&&canSubmit&&<button type="button" className="secondary" disabled={busy} onClick={()=>void action(`${prefix}/proposals/${p.id}/submit`,{justification:reason||null})}>Enviar à revisão</button>}
       {p.status==="submitted"&&canApprove&&<>
-       <button type="button" className="secondary" disabled={busy} onClick={()=>void action(`${prefix}/proposals/${p.id}/approve`,{note:note||null})}>Aprovar</button>
+       {p.created_by!==currentUserId&&p.submitted_by!==currentUserId?<button type="button" className="secondary" disabled={busy} onClick={()=>void action(`${prefix}/proposals/${p.id}/approve`,{note:note||null})}>Aprovar</button>:<span className="muted small" title="O criador ou remetente da proposta não pode aprová-la.">Aprovação exige outro usuário.</span>}
        <button type="button" className="ghost" disabled={busy||!note.trim()} onClick={()=>void action(`${prefix}/proposals/${p.id}/reject`,{note})}>Rejeitar</button>
       </>}
      </div></td>
