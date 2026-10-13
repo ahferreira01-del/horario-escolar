@@ -56,6 +56,12 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/ready', timeout=3)"]
+      interval: 20s
+      timeout: 6s
+      retries: 3
+      start_period: 15s
     security_opt:
       - no-new-privileges:true
   web:
@@ -69,7 +75,9 @@ services:
       HOSTNAME: "0.0.0.0"
       PORT: "3000"
     networks: [private]
-    depends_on: [api]
+    depends_on:
+      api:
+        condition: service_healthy
     security_opt:
       - no-new-privileges:true
   edge:
