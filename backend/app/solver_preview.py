@@ -166,10 +166,17 @@ def check_input(data):
                 if a!=b: travel_minutes(travel,a,b)
     return periods
 
-def all_grid(data, *, engine='milp'):
+def all_grid(data, *, engine='milp', secondary_time_limit=None):
     # CP-SAT é opt-in e permanece experimental. A API continua usando MILP.
     if engine not in ('milp','cpsat'):
         raise ValueError('Motor desconhecido; use milp ou cpsat.')
+    # Orçamento secundário independente é exclusivo do experimento CP-SAT.
+    # Não aceitar float, bool, zero ou tempo não limitado.
+    if secondary_time_limit is not None and (
+        engine != 'cpsat' or type(secondary_time_limit) is not int or
+        not 1 <= secondary_time_limit <= 15
+    ):
+        raise ValueError('Limite secundário CP-SAT deve ser inteiro de 1 a 15 segundos.')
     slots=check_input(data)
     teachers=data['teachers']; classes=data['classes']; demands=data['demands']
     resources=data.get('resources',{}); travel=data.get('travel_minutes',{})
@@ -317,7 +324,7 @@ def all_grid(data, *, engine='milp'):
             # de aulas. O segundo usa essas escolhas como dica, nunca como
             # fixação: pode realocar aulas para melhorar dias/turnos.
             mdl.set_solution_hints({v:int(coverage.x[v]>0.5) for v in all_vars})
-        optimal=mdl.solve(objective,data.get('time_limit',12))
+        optimal=mdl.solve(objective, secondary_time_limit if secondary_time_limit is not None else data.get('time_limit',12))
         selected=optimal.x if optimal.x is not None else coverage.x
     else:
         optimal=None; selected=np.zeros(len(mdl.names))
