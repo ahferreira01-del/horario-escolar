@@ -8,8 +8,8 @@ type Proposal = {
  created_at:string;justification:string|null;decision_note:string|null;published:boolean;
 };
 
-export default function ProposalsPanel({prefix,yearId,currentUserId,csrf,canRead,canCreate,canSubmit,canApprove,profile}:{
- prefix:string;yearId:string;currentUserId:string;csrf:string;canRead:boolean;canCreate:boolean;canSubmit:boolean;canApprove:boolean;profile:string;
+export default function ProposalsPanel({prefix,yearId,currentUserId,onChanged,csrf,canRead,canCreate,canSubmit,canApprove,profile}:{
+ prefix:string;yearId:string;currentUserId:string;onChanged:()=>void;csrf:string;canRead:boolean;canCreate:boolean;canSubmit:boolean;canApprove:boolean;profile:string;
 }) {
  const [items,setItems]=useState<Proposal[]>([]);
  const [reason,setReason]=useState("");
@@ -24,7 +24,7 @@ export default function ProposalsPanel({prefix,yearId,currentUserId,csrf,canRead
  useEffect(()=>{void refresh().catch(e=>setError(String(e)))},[refresh]);
  async function action(url:string,payload:unknown){
    setBusy(true);setError("");setNotice("");
-   try{await api(url,"POST",payload,csrf);await refresh();setNotice("Operação registrada. A grade ainda NÃO está publicada.");}
+   try{await api(url,"POST",payload,csrf);await refresh();onChanged();setNotice("Operação registrada. A grade ainda NÃO está publicada.");}
    catch(e){setError(e instanceof Error?e.message:"Não foi possível concluir a operação.");}
    finally{setBusy(false);}
  }
@@ -34,7 +34,7 @@ export default function ProposalsPanel({prefix,yearId,currentUserId,csrf,canRead
    <p className="muted small">As propostas são instantâneos calculados no servidor, com histórico e auditoria. A aprovação NÃO equivale à publicação. O módulo de publicação exige verificação adicional e PostgreSQL seguro.</p>
    {error&&<div className="alert" role="alert">{error}</div>}
    {notice&&<div className="alert success" role="status">{notice}</div>}
-   {canCreate&&<div className="row" style={{marginTop:12}}><button disabled={busy||!yearId} type="button" onClick={()=>void action(`${prefix}/proposals`,{academic_year_id:yearId,profile,time_limit:8})}>Gerar e salvar nova proposta</button><button className="secondary" type="button" disabled={busy} onClick={()=>void refresh()}>Atualizar lista</button></div>}
+   {canCreate&&<div className="row" style={{marginTop:12}}><button disabled={busy||!yearId} type="button" onClick={()=>void action(`${prefix}/proposals`,{academic_year_id:yearId,profile,time_limit:8})}>Gerar e salvar nova proposta</button><button className="secondary" type="button" disabled={busy} onClick={()=>void refresh().then(onChanged).catch(e=>setError(String(e)))}>Atualizar lista</button></div>}
    <p className="hint">O motor recalcula ao salvar. Uma proposta com aulas pendentes exigirá justificativa para submissão e permissão especial para aprovação. Alterações no cadastro exigem gerar nova proposta.</p>
    <div className="grid-2" style={{marginTop:12}}><div><label htmlFor="proposal-reason">Justificativa para proposta parcial</label><textarea id="proposal-reason" rows={2} maxLength={1000} value={reason} onChange={e=>setReason(e.target.value)} placeholder="Obrigatória quando houver pendências"/></div><div><label htmlFor="proposal-note">Observação da decisão</label><textarea id="proposal-note" rows={2} maxLength={1000} value={note} onChange={e=>setNote(e.target.value)} placeholder="Obrigatória para rejeitar"/></div></div>
    {items.length===0?<div className="empty" style={{marginTop:12}}>Nenhuma proposta registrada neste ano letivo.</div>:
