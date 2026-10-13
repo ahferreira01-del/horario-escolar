@@ -110,3 +110,41 @@ def build_feasible_scenario(classes: int = 12, *, time_limit: int = 5) -> dict:
         data["resources"][resource]["max_groups"] = groups
         data["resources"][resource]["max_students"] = 25 * groups
     return data
+
+
+def feasible_reference_assignments(data: dict) -> list[dict]:
+    """Grade construtiva para a fixture viável 4R, sem chamar um otimizador.
+
+    Um professor leciona no Centro e no Norte em dias distintos; cada turma
+    ocupa dois períodos consecutivos no mesmo dia. As turmas do laboratório
+    são distribuídas entre cinco dias para respeitar a capacidade calculada.
+    Serve SOMENTE de testemunha matemática para esta fixture artificial.
+    """
+    if not data["classes"] or len(data["classes"]) % 2:
+        raise ValueError("Testemunha 4R exige pares de turmas.")
+    output = []
+    for pair in range(len(data["classes"]) // 2):
+        for offset in (0, 1):
+            idx = 2 * pair + offset
+            class_id = f"Turma_{idx + 1:03d}"
+            cls = data["classes"][class_id]
+            day = DAYS[(pair + offset) % len(DAYS)]
+            demand = next(d for d in data["demands"] if d["class_id"] == class_id)
+            slots = sorted(
+                (s for s in cls["slots"] if s["day"] == day),
+                key=lambda s: s["order"])
+            for slot in slots[:2]:
+                output.append({
+                    "class_id": class_id,
+                    "school_id": cls["school_id"],
+                    "subject": demand["subject"],
+                    "teacher": demand["teacher_id"],
+                    "day": day,
+                    "order": slot["order"],
+                    "start": slot["start"],
+                    "end": slot["end"],
+                    "shift": slot["shift"],
+                    "resource_id": demand.get("resource_id"),
+                    "students": cls["students"],
+                })
+    return output
