@@ -102,7 +102,7 @@ def main():
             expect(assignments.get_by_role("cell", name=subject)).to_be_visible()
             page.get_by_role("button", name="Gerar prévia experimental").click()
             expect(page.get_by_text("Prévia calculada. Verifique pendências e limitações abaixo.")).to_be_visible(timeout=45000)
-            expect(page.get_by_text("1 aulas", exact=False)).to_be_visible()
+            expect(page.locator(".card").filter(has_text="Aulas distribuídas").locator(".metric")).to_have_text("1 aulas")
             expect(page.get_by_text("Cobertura completa")).to_be_visible()
             print("SCHOOL_BROWSER_PASSED: convite, escopo do admin, escola, professor, disponibilidade, turma, atribuição e prévia.")
         finally:
