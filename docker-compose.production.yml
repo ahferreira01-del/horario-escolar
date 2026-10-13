@@ -14,7 +14,7 @@ services:
     volumes:
       - horario_prod_pgdata:/var/lib/postgresql/data
       - ./docker/db-init/10-runtime-role.sh:/docker-entrypoint-initdb.d/10-runtime-role.sh:ro
-    networks: [private]
+    networks: [data_net]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U horario_owner -d horario"]
       interval: 10s
@@ -29,7 +29,7 @@ services:
     environment:
       DATABASE_URL: ${HI_DB_OWNER_URL:?Owner migration-only URL}
       ENVIRONMENT: development
-    networks: [private]
+    networks: [data_net]
     depends_on:
       db:
         condition: service_healthy
@@ -42,7 +42,7 @@ services:
     environment:
       REDIS_PASSWORD: ${HI_REDIS_PASSWORD:?Set Redis authentication secret}
     command: ["sh", "-ec", "exec redis-server --save '' --appendonly no --requirepass \"$REDIS_PASSWORD\""]
-    networks: [private]
+    networks: [data_net]
     healthcheck:
       test: ["CMD-SHELL", "REDISCLI_AUTH=$REDIS_PASSWORD redis-cli ping | grep -q PONG"]
       interval: 10s
@@ -67,7 +67,7 @@ services:
       SMTP_USER: ${HI_SMTP_USER:-}
       SMTP_PASSWORD: ${HI_SMTP_PASSWORD:-}
       SMTP_FROM: ${HI_SMTP_FROM:?Set sender}
-    networks: [private]
+    networks: [data_net, service_net]
     depends_on:
       db:
         condition: service_healthy
@@ -91,7 +91,7 @@ services:
       NODE_ENV: production
       HOSTNAME: "0.0.0.0"
       PORT: "3000"
-    networks: [private]
+    networks: [service_net, edge_net]
     depends_on:
       api:
         condition: service_healthy
@@ -110,13 +110,17 @@ services:
       - ./ops/Caddyfile:/etc/caddy/Caddyfile:ro
       - horario_prod_caddy_data:/data
       - horario_prod_caddy_config:/config
-    networks: [private]
+    networks: [edge_net]
     depends_on: [web]
     security_opt:
       - no-new-privileges:true
 networks:
-  private:
-    internal: false  # Containers need outbound SMTP, package downloads, ACME.
+  data_net:
+    internal: false  # API needs SMTP egress. Never expose service ports externally.
+  service_net:
+    internal: false
+  edge_net:
+    internal: false
 volumes:
   horario_prod_pgdata:
   horario_prod_caddy_data:
