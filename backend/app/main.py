@@ -13,7 +13,7 @@ from .models import (Tenant, User, School, Role, Membership, Invitation, Teacher
 from .schemas import (Login, TenantCreate, SchoolCreate, InvitationCreate, InvitationAccept,
                       TeacherCreate, AvailabilityReplace, AvailabilityRequestCreate, RoleCreate)
 from .security import (current_user, require_csrf, make_session, set_auth_cookie, verify_password,
-                       hash_password, new_invitation_token, token_hash, ROLE_PERMISSIONS,
+                       hash_password, dummy_password_hash, new_invitation_token, token_hash, ROLE_PERMISSIONS,
                        KNOWN_PERMISSIONS, authorize, permitted, role_can_delegate)
 from .emailer import send_invitation
 from .login_throttle import check_login_attempt, clear_successful_login, check_auth_backend
@@ -136,7 +136,9 @@ def login(data: Login, response: Response, db: Session = Depends(get_db)):
     # Limite distribuído funciona ANTES de consultar usuário ou fazer Argon2.
     check_login_attempt(normalized_email)
     user = db.scalar(select(User).where(User.email == normalized_email))
-    if not user or not user.is_active or not verify_password(data.password, user.password_hash):
+    password_digest = user.password_hash if user and user.is_active else dummy_password_hash()
+    password_ok = verify_password(data.password, password_digest)
+    if not user or not user.is_active or not password_ok:
         raise HTTPException(401, "E-mail ou senha inválidos.")
     clear_successful_login(normalized_email)
     token, csrf = make_session(user)
