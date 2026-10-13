@@ -7,8 +7,8 @@ type ClassItem={id:string;name:string};
 type Published={id:string;batch_id:string;valid_from:string;valid_to:string;partial:boolean;published_at:string};
 type Preflight={eligible:boolean;lessons:number;dated_occurrences:number;partial:boolean;schools:number;existing_occurrences_compared:number;warning:string};
 
-export default function PublicationPanel({tenantId,schoolId,yearId,csrf,canPublish,canRead}: {
- tenantId:string;schoolId:string;yearId:string;csrf:string;canPublish:boolean;canRead:boolean;
+export default function PublicationPanel({tenantId,schoolId,yearId,refreshKey,csrf,canPublish,canRead}: {
+ tenantId:string;schoolId:string;yearId:string;refreshKey:number;csrf:string;canPublish:boolean;canRead:boolean;
 }){
  const [proposals,setProposals]=useState<Proposal[]>([]);
  const [classes,setClasses]=useState<ClassItem[]>([]);
@@ -31,7 +31,7 @@ export default function PublicationPanel({tenantId,schoolId,yearId,csrf,canPubli
   ]);
   setProposals(p);setClasses(c);setPublished(official);
  },[base,schoolBase,schoolId,yearId,canRead]);
- useEffect(()=>{setSelected([]);setProposalId("");setPreflight(null);setConfirmed(false);void update().catch(e=>setError(String(e)))},[update]);
+ useEffect(()=>{setSelected([]);setProposalId("");setPreflight(null);setConfirmed(false);void update().catch(e=>setError(String(e)))},[update,refreshKey]);
  const body=()=>({parts:[{school_id:schoolId,proposal_id:proposalId,class_ids:selected}],valid_from:from,valid_to:to,exceptional_justification:justification.trim()||null});
  async function action(publish:boolean){
   setBusy(true);setError("");setNotice("");
