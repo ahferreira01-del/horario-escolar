@@ -59,5 +59,13 @@ def test_compose_production_no_public_db_or_api_ports(tmp_path):
     assert "healthcheck" in services["api"]
     assert "healthcheck" in services["redis"]
     assert services["api"]["depends_on"]["redis"]["condition"]=="service_healthy"
+    # Docker Compose must keep the shell variable for expansion INSIDE the
+    # redis container, never interpolate it from the CI host environment.
+    redis_command = " ".join(services["redis"]["command"])
+    redis_health = " ".join(services["redis"]["healthcheck"]["test"])
+    assert '$REDIS_PASSWORD' in redis_command
+    assert '$REDIS_PASSWORD' in redis_health
+    assert fake["HI_REDIS_PASSWORD"] not in redis_command
+    assert "REDIS_PASSWORD variable is not set" not in p.stderr
     assert "AUTH_RATE_LIMIT_REDIS_URL" in services["api"]["environment"]
     assert services["web"]["depends_on"]["api"]["condition"]=="service_healthy"
