@@ -312,6 +312,11 @@ def all_grid(data, *, engine='milp'):
         if c['day'] in demands[c['demand']].get('avoid_days',[]):
             objective[c['var']]=objective.get(c['var'],0)+weights['pedagogy']
     if all_vars:
+        if engine=='cpsat':
+            # O primeiro estágio já fornece uma solução para as variáveis
+            # de aulas. O segundo usa essas escolhas como dica, nunca como
+            # fixação: pode realocar aulas para melhorar dias/turnos.
+            mdl.set_solution_hints({v:int(coverage.x[v]>0.5) for v in all_vars})
         optimal=mdl.solve(objective,data.get('time_limit',12))
         selected=optimal.x if optimal.x is not None else coverage.x
     else:
