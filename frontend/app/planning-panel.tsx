@@ -25,6 +25,7 @@ export default function PlanningPanel({tenantId,currentUserId,schools,teachers,c
   const [subjectInput,setSubjectInput]=useState("");const [classInput,setClassInput]=useState({name:"",students:25});
   const [assignmentInput,setAssignmentInput]=useState({subject_id:"",teacher_id:"",lessons:2,max_consecutive:2,load_mode:"lessons",target_minutes:250,min_minutes:250,max_minutes:250,resource_id:""});
   const [profile,setProfile]=useState("equilibrado");const [preview,setPreview]=useState<Preview|null>(null);
+  const [publicationRefresh,setPublicationRefresh]=useState(0);
   const [message,setMessage]=useState("");const [error,setError]=useState("");const [busy,setBusy]=useState(false);
   const prefix=`/api/tenants/${tenantId}/schools/${schoolId}`;
   const schoolTeachers=teachers.filter(t=>t.schools.includes(schoolId));
@@ -98,8 +99,8 @@ export default function PlanningPanel({tenantId,currentUserId,schools,teachers,c
           <h3 style={{marginTop:20}}>Aulas encontradas</h3><div className="planner-table-scroll"><table className="data-table"><thead><tr><th>Turma</th><th>Dia</th><th>Aula</th><th>Horário</th><th>Disciplina</th><th>Professor</th></tr></thead><tbody>{preview.assignments.map((a,i)=><tr key={i}><td>{a.class_name}</td><td>{a.day}</td><td>{a.order}ª</td><td>{a.start}–{a.end}</td><td>{a.subject}</td><td>{a.teacher_name}</td></tr>)}</tbody></table></div>
         </div>}
       </div>
-      {canProposalsRead&&<ProposalsPanel prefix={prefix} yearId={yearId} currentUserId={currentUserId} csrf={csrf} profile={profile} canRead={canProposalsRead} canCreate={canProposalsCreate} canSubmit={canProposalsSubmit} canApprove={canProposalsApprove}/>}
-      {canProposalsRead&&<PublicationPanel tenantId={tenantId} schoolId={schoolId} yearId={yearId} csrf={csrf} canRead={canProposalsRead} canPublish={canPublish}/>}
+      {canProposalsRead&&<ProposalsPanel prefix={prefix} yearId={yearId} currentUserId={currentUserId} onChanged={()=>setPublicationRefresh(n=>n+1)} csrf={csrf} profile={profile} canRead={canProposalsRead} canCreate={canProposalsCreate} canSubmit={canProposalsSubmit} canApprove={canProposalsApprove}/>}
+      {canProposalsRead&&<PublicationPanel tenantId={tenantId} schoolId={schoolId} yearId={yearId} refreshKey={publicationRefresh} csrf={csrf} canRead={canProposalsRead} canPublish={canPublish}/>}
     </>}
   </div>
 }
