@@ -122,3 +122,23 @@ def test_cpsat_multischool_shared_teachers_lab():
     assert result["total_required"]==result["total_assigned"]==6
     assert validate_solution(dataset,result["assignments"])==[]
     assert {row["school_id"] for row in result["assignments"]}=={"Centro","Norte"}
+
+
+def test_minute_load_mode_parity_and_fractional_coverage():
+    # A cobertura em minutos usa pesos 45/90=0.5; o adaptador CP-SAT deve
+    # preservar essa prioridade, nunca truncar a cobertura para zero.
+    data=_dataset()
+    data["mode"]="mixed"
+    data["demands"]=[dict(
+        class_id="A",subject="Matemática",teacher_id="Ana",
+        unit="minutes",target_minutes=90,min_minutes=85,max_minutes=90,
+        lessons=2,max_consecutive=2
+    )]
+    for engine in ("milp","cpsat"):
+        result=all_grid(deepcopy(data),engine=engine)
+        assert result["result"]=="complete",(engine,result)
+        assert result["minute_mode_scheduled_minutes"]==90,(engine,result)
+        assert result["required_minutes"]==85,(engine,result)
+        assert result["total_assigned"]==2,(engine,result)
+        assert not result["pending"],(engine,result)
+        assert validate_solution(data,result["assignments"])==[],(engine,result)
