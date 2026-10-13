@@ -19,7 +19,7 @@ from .database import get_db
 from .models import (
     User, GradeProposal, SchoolClass, ClassPeriod, TeachingAssignment, Subject,
     Availability, Teacher, TeacherSchool, TeacherLimit, TeacherWeeklyLimit,
-    SchoolResource, ResourceAvailability, School, AcademicYear, utcnow,
+    SchoolResource, ResourceAvailability, SchoolTravelTime, School, AcademicYear, utcnow,
 )
 from .planning import scope, year_in, build_preview, audit
 from .security import current_user, require_csrf, authorize
@@ -56,6 +56,11 @@ def source_fingerprint(db: Session, tenant_id: str, school_id: str, year_id: str
         TeachingAssignment.class_id.in_(cls_ids))).all()
     teacher_ids = sorted({a.teacher_id for a in assignment_rows})
     resource_ids = sorted({a.resource_id for a in assignment_rows if a.resource_id})
+    # Deslocamentos de professores compartilhados também fazem parte das
+    # entradas da geração: alterar minutos torna propostas antigas obsoletas.
+    linked_school_ids = sorted(set(db.scalars(select(TeacherSchool.school_id).where(
+        TeacherSchool.tenant_id == tenant_id,
+        TeacherSchool.teacher_id.in_(teacher_ids))).all()))
     parts = [
         (School, [School.tenant_id == tenant_id, School.id == school_id]),
         (AcademicYear, [AcademicYear.tenant_id == tenant_id, AcademicYear.school_id == school_id, AcademicYear.id == year_id]),
@@ -65,6 +70,9 @@ def source_fingerprint(db: Session, tenant_id: str, school_id: str, year_id: str
         (Subject, [Subject.tenant_id == tenant_id, Subject.school_id == school_id]),
         (Teacher, [Teacher.tenant_id == tenant_id, Teacher.id.in_(teacher_ids)]),
         (TeacherSchool, [TeacherSchool.tenant_id == tenant_id, TeacherSchool.teacher_id.in_(teacher_ids)]),
+        (SchoolTravelTime, [SchoolTravelTime.tenant_id == tenant_id,
+                            SchoolTravelTime.from_school_id.in_(linked_school_ids),
+                            SchoolTravelTime.to_school_id.in_(linked_school_ids)]),
         (Availability, [Availability.tenant_id == tenant_id, Availability.teacher_id.in_(teacher_ids)]),
         (TeacherLimit, [TeacherLimit.tenant_id == tenant_id, TeacherLimit.teacher_id.in_(teacher_ids)]),
         (TeacherWeeklyLimit, [TeacherWeeklyLimit.tenant_id == tenant_id, TeacherWeeklyLimit.teacher_id.in_(teacher_ids)]),
