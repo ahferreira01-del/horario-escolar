@@ -11,8 +11,16 @@
 - `GET /api/ready`: verifica banco e contrato PostgreSQL/RLS, retorna **503 sem detalhes internos** se inseguro/indisponível. `/api/health` é apenas liveness; não substituir readiness por health na decisão de liberação.
 - `backend/app/cli.py`: aceita `--password-stdin` para bootstrap do primeiro admin, evitando senha em argumentos de processo.
 
+### Proteção de autenticação (Fase 4V)
+- A versão de produção usa Redis 7 autenticado, **sem portas públicas**, na rede do Compose. Redis armazena apenas contadores de 5 minutos, não sessões nem dados de alunos.
+- O login contabiliza tentativas por HMAC-SHA256 do e-mail normalizado, com segredo do servidor (e-mail não é salvo como chave em claro). Após **8 tentativas em 5 minutos**, as demais recebem HTTP **429**, com `Retry-After`. A autenticação bem-sucedida limpa o contador.
+- Redis indisponível ou não configurado gera **HTTP 503**, não liberação silenciosa. A prontidão da API valida também o serviço de limitação. Usuários inexistentes/inativos passam por comparação Argon2 fictícia para reduzir enumeração por tempo.
+- O limitador por conta é apenas uma camada: permite negação temporária de acesso contra um e-mail conhecido e não substitui **WAF, controle por IP confiável na borda, detecção de abuso, captcha adaptativo, MFA, monitoramento e testes de segurança**. Ainda falta teste integrado contra servidor Redis real em uma instância de homologação.
+- Configure `HI_REDIS_PASSWORD` (segredo **diferente** das senhas PostgreSQL e da sessão) e `HI_AUTH_REDIS_URL=redis://:senha@redis:6379/0` no arquivo privado `ops/production.env`. Evite caracteres especiais não codificados em URLs. O preflight de release exige coerência entre os dois.
+- A instância Redis não usa persistência (contadores reiniciam após perda do container); isso não é banco de dados de usuários nem controle antifraude completo. O deploy deve bloquear login se a instância estiver indisponível.
+
 ## 2. Informações e infraestrutura pendentes
-É preciso decidir e provisionar um **servidor/VPS ou serviço equivalente**, domínio DNS público, TLS/portas 80 e 443, SMTP com STARTTLS, serviço de backup criptografado fora do servidor, monitoramento, alertas, política de retenção/exclusão LGPD e responsáveis pela operação. **Nenhum provedor, domínio real, servidor SSH, e-mail de produção ou ambiente ativo foi fornecido/certificado nesta etapa.**
+É preciso decidir e provisionar um **servidor/VPS ou serviço equivalente**, domínio DNS público, TLS/portas 80 e 443, SMTP com STARTTLS, serviço de backup criptografado fora do servidor, Redis de autenticação, monitoramento, alertas, política de retenção/exclusão LGPD e responsáveis pela operação. **Nenhum provedor, domínio real, servidor SSH, e-mail de produção ou ambiente ativo foi fornecido/certificado nesta etapa.**
 
 Este exemplo usa Docker Compose em **um único servidor** e PostgreSQL 16 local. Para alta disponibilidade, gestão de chaves, autoscaling e recuperação regional, será necessário avaliar infraestrutura gerenciada. O Compose não implementa HA, backups automáticos ou recuperação sozinho.
 
