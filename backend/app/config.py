@@ -52,7 +52,8 @@ def validate_production_configuration(cfg: Settings) -> None:
             or not rate_url.hostname or not rate_url.password
             or rate_url.username or rate_url.fragment
             or rate_url.path not in ("", "/", "/0")
-            or rate_url.port not in (None, 6379)):
+            or rate_url.port not in (None, 6379)
+            or (rate_url.scheme == "redis" and rate_url.hostname != "redis")):
         raise RuntimeError("AUTH_RATE_LIMIT_REDIS_URL autenticada é obrigatória em produção.")
     if not 5 <= cfg.session_max_minutes <= 1440:
         raise RuntimeError("SESSION_MAX_MINUTES fora de limites seguros (5–1440).")
