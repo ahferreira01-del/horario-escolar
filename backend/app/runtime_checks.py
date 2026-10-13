@@ -18,7 +18,11 @@ def _policy_has_context(expression: str | None, setting: str, column: str) -> bo
     Expressões novas exigem revisão explícita antes de chegar à produção.
     """
     compact = re.sub(r"\s+", "", expression or "").lower()
-    expected = (rf"\(*{re.escape(column)}=nullif\(current_setting\("
+    # O pg_policies converte VARCHAR para TEXT no lado esquerdo:
+    # ((tenant_id)::text = NULLIF(current_setting('app.tenant_id'::text, true), ''::text))
+    # Aceitar SOMENTE a igualdade estrutural com ou sem este cast, nunca AND/OR.
+    lhs = rf"(?:{re.escape(column)}|\({re.escape(column)}\)::text)"
+    expected = (rf"\(*{lhs}=nullif\(current_setting\("
                 rf"'{re.escape(setting)}'(?:::text)?,true\),''(?:::text)?\)\)*")
     return re.fullmatch(expected, compact) is not None
 
