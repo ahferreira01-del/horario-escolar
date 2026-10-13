@@ -99,7 +99,7 @@ def main():
             ass_form.locator("select").nth(1).select_option(label=teacher)
             ass_form.locator('input[type="number"]').first.fill("1")
             ass_form.get_by_role("button", name="Vincular carga horária").click()
-            expect(assignments.get_by_text(subject)).to_be_visible()
+            expect(assignments.get_by_role("cell", name=subject)).to_be_visible()
             page.get_by_role("button", name="Gerar prévia experimental").click()
             expect(page.get_by_text("Prévia calculada. Verifique pendências e limitações abaixo.")).to_be_visible(timeout=45000)
             expect(page.get_by_text("1 aulas", exact=False)).to_be_visible()
