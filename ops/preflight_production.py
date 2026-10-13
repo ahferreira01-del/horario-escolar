@@ -17,7 +17,7 @@ REQUIRED = (
     "HI_PUBLIC_HOST",
     "HI_POSTGRES_OWNER_PASSWORD", "HI_POSTGRES_RUNTIME_PASSWORD",
     "HI_DB_OWNER_URL", "HI_DB_RUNTIME_URL", "HI_SESSION_SECRET",
-    "HI_SMTP_HOST", "HI_SMTP_FROM",
+    "HI_SMTP_HOST", "HI_SMTP_FROM", "HI_REDIS_PASSWORD", "HI_AUTH_REDIS_URL",
 )
 PLACEHOLDER_MARKERS = ("REPLACE", "SUBSTITUA", "CHANGE_ME", "EXAMPLE", "DEV_ONLY")
 
@@ -55,14 +55,17 @@ def validate_config(values: dict[str, str]) -> list[str]:
     except ValueError:
         pass
 
-    for key in ("HI_POSTGRES_OWNER_PASSWORD","HI_POSTGRES_RUNTIME_PASSWORD","HI_SESSION_SECRET"):
+    for key in ("HI_POSTGRES_OWNER_PASSWORD","HI_POSTGRES_RUNTIME_PASSWORD","HI_SESSION_SECRET","HI_REDIS_PASSWORD"):
         val=values.get(key,"")
         if val and len(val)<40:
             errors.append(f"{key}: mínimo 40 caracteres")
         if val and not re.fullmatch(r"[A-Za-z0-9_-]+",val):
             errors.append(f"{key}: neste perfil usar somente [A-Za-z0-9_-] (ou adaptar URL encoding)")
-    if values.get("HI_POSTGRES_OWNER_PASSWORD") == values.get("HI_POSTGRES_RUNTIME_PASSWORD"):
-        errors.append("Senhas owner/runtime devem ser diferentes")
+    credentials = [values.get(key) for key in (
+        "HI_POSTGRES_OWNER_PASSWORD", "HI_POSTGRES_RUNTIME_PASSWORD",
+        "HI_REDIS_PASSWORD", "HI_SESSION_SECRET")]
+    if any(v and credentials.count(v) > 1 for v in credentials):
+        errors.append("Senhas e segredo da sessão devem ser diferentes")
     for field,user,password in [
         ("HI_DB_OWNER_URL","horario_owner","HI_POSTGRES_OWNER_PASSWORD"),
         ("HI_DB_RUNTIME_URL","horario_runtime","HI_POSTGRES_RUNTIME_PASSWORD"),
@@ -76,6 +79,15 @@ def validate_config(values: dict[str, str]) -> list[str]:
                 errors.append(f"{field}: credenciais/esquema/host inconsistentes")
         except (ValueError,TypeError):
             errors.append(f"{field}: formato inválido")
+    try:
+        redis_url=urlsplit(values.get("HI_AUTH_REDIS_URL", ""))
+        if (redis_url.scheme!="redis" or redis_url.hostname!="redis"
+                or redis_url.port!=6379 or redis_url.username is not None
+                or redis_url.password!=values.get("HI_REDIS_PASSWORD")
+                or redis_url.path!="/0"):
+            errors.append("HI_AUTH_REDIS_URL: senha, host ou porta incompatíveis")
+    except (ValueError, TypeError):
+        errors.append("HI_AUTH_REDIS_URL: formato inválido")
     try:
         port=int(values.get("HI_SMTP_PORT","587"))
         if not 1<=port<=65535:
