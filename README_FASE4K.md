@@ -8,6 +8,11 @@
 - A Fase 4J foi ampliada com `after_preview` opcional, sem modificar o fluxo anterior.
 - Texto do painel atualizado para não afirmar incorretamente que os testes PostgreSQL nunca foram executados.
 
+## Melhoria da Fase 4K: atualização automática da publicação
+Após gerar, submeter ou aprovar uma proposta na seção 6, a seção 7 atualiza a lista de propostas e publicações sem exigir clique manual em "Atualizar histórico". Isso mantém o botão de publicação condicionado à pré-validação e à seleção de turma e vigência, e a mudança de proposta reinicia a confirmação da pré-validação.
+
+O cenário `smoke_browser_publication_fase4k.py` foi ajustado para exigir essa atualização automática depois da aprovação feita pelo diretor. A checagem só contará como aprovada quando a execução do script 4K ocorrer efetivamente no Chromium.
+
 ## Evidência e limites
 Os workflows de Fase 4I/4J continuam aprovados no GitHub. No commit de inclusão deste novo teste, os workflows **não executaram o script 4K**, porque o arquivo `.github/workflows/ci.yml` ainda não o referencia. A tentativa de inclusão foi bloqueada pela conexão do GitHub nesta sessão; não se deve declarar o teste 4K como aprovado sem execução.
 
