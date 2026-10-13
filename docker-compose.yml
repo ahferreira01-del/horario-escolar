@@ -1,0 +1,57 @@
+# Fase 4C: AMBIENTE DE DESENVOLVIMENTO com banco separado por owner/runtime.
+# Para base preexistente NÃO executar migrations automaticamente: leia README.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: horario
+      POSTGRES_USER: horario_owner
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD em .env}
+      RUNTIME_DB_PASSWORD: ${RUNTIME_DB_PASSWORD:?Defina RUNTIME_DB_PASSWORD em .env}
+    volumes:
+      - horario_pgdata:/var/lib/postgresql/data
+      - ./docker/db-init/10-runtime-role.sh:/docker-entrypoint-initdb.d/10-runtime-role.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U horario_owner -d horario"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  migrate:
+    build: ./backend
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://horario_owner:${POSTGRES_PASSWORD}@db:5432/horario
+      SESSION_SECRET: ${SESSION_SECRET:?Defina SESSION_SECRET em .env}
+      ENVIRONMENT: development
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+  api:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql+psycopg://horario_runtime:${RUNTIME_DB_PASSWORD}@db:5432/horario
+      SESSION_SECRET: ${SESSION_SECRET:?Defina SESSION_SECRET em .env}
+      ENVIRONMENT: development
+      PUBLIC_APP_URL: http://localhost:3000
+      COOKIE_SECURE: "false"
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:8000:8000"
+  web:
+    build: ./frontend
+    environment:
+      API_BACKEND_URL: http://api:8000
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - api
+volumes:
+  horario_pgdata:

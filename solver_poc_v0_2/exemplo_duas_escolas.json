@@ -1,0 +1,787 @@
+{
+  "mode": "lessons",
+  "organization_id": "RedeAlfa",
+  "profile": "equilibrado",
+  "time_limit": 10,
+  "schools": {
+    "Centro": {
+      "organization_id": "RedeAlfa"
+    },
+    "Norte": {
+      "organization_id": "RedeAlfa"
+    }
+  },
+  "classes": {
+    "6A": {
+      "school_id": "Centro",
+      "students": 25,
+      "slots": [
+        {
+          "day": "Seg",
+          "order": 1,
+          "start": "07:10",
+          "end": "07:55",
+          "shift": "manha"
+        },
+        {
+          "day": "Seg",
+          "order": 2,
+          "start": "07:55",
+          "end": "08:40",
+          "shift": "manha"
+        },
+        {
+          "day": "Seg",
+          "order": 3,
+          "start": "09:00",
+          "end": "09:45",
+          "shift": "manha"
+        },
+        {
+          "day": "Seg",
+          "order": 4,
+          "start": "09:55",
+          "end": "10:40",
+          "shift": "manha"
+        },
+        {
+          "day": "Ter",
+          "order": 1,
+          "start": "07:10",
+          "end": "07:55",
+          "shift": "manha"
+        },
+        {
+          "day": "Ter",
+          "order": 2,
+          "start": "07:55",
+          "end": "08:40",
+          "shift": "manha"
+        },
+        {
+          "day": "Ter",
+          "order": 3,
+          "start": "09:00",
+          "end": "09:45",
+          "shift": "manha"
+        },
+        {
+          "day": "Ter",
+          "order": 4,
+          "start": "09:55",
+          "end": "10:40",
+          "shift": "manha"
+        },
+        {
+          "day": "Qua",
+          "order": 1,
+          "start": "07:10",
+          "end": "07:55",
+          "shift": "manha"
+        },
+        {
+          "day": "Qua",
+          "order": 2,
+          "start": "07:55",
+          "end": "08:40",
+          "shift": "manha"
+        },
+        {
+          "day": "Qua",
+          "order": 3,
+          "start": "09:00",
+          "end": "09:45",
+          "shift": "manha"
+        },
+        {
+          "day": "Qua",
+          "order": 4,
+          "start": "09:55",
+          "end": "10:40",
+          "shift": "manha"
+        },
+        {
+          "day": "Qui",
+          "order": 1,
+          "start": "07:10",
+          "end": "07:55",
+          "shift": "manha"
+        },
+        {
+          "day": "Qui",
+          "order": 2,
+          "start": "07:55",
+          "end": "08:40",
+          "shift": "manha"
+        },
+        {
+          "day": "Qui",
+          "order": 3,
+          "start": "09:00",
+          "end": "09:45",
+          "shift": "manha"
+        },
+        {
+          "day": "Qui",
+          "order": 4,
+          "start": "09:55",
+          "end": "10:40",
+          "shift": "manha"
+        },
+        {
+          "day": "Sex",
+          "order": 1,
+          "start": "07:10",
+          "end": "07:55",
+          "shift": "manha"
+        },
+        {
+          "day": "Sex",
+          "order": 2,
+          "start": "07:55",
+          "end": "08:40",
+          "shift": "manha"
+        },
+        {
+          "day": "Sex",
+          "order": 3,
+          "start": "09:00",
+          "end": "09:45",
+          "shift": "manha"
+        },
+        {
+          "day": "Sex",
+          "order": 4,
+          "start": "09:55",
+          "end": "10:40",
+          "shift": "manha"
+        }
+      ]
+    },
+    "6B": {
+      "school_id": "Centro",
+      "students": 26,
+      "slots": [
+        {
+          "day": "Seg",
+          "order": 1,
+          "start": "07:10",
+          "end": "07:55",
+          "shift": "manha"
+        },
+        {
+          "day": "Seg",
+          "order": 2,
+          "start": "07:55",
+          "end": "08:40",
+          "shift": "manha"
+        },
+        {
+          "day": "Seg",
+          "order": 3,
+          "start": "09:00",
+          "end": "09:45",
+          "shift": "manha"
+        },
+        {
+          "day": "Seg",
+          "order": 4,
+          "start": "09:55",
+          "end": "10:40",
+          "shift": "manha"
+        },
+        {
+          "day": "Ter",
+          "order": 1,
+          "start": "07:10",
+          "end": "07:55",
+          "shift": "manha"
+        },
+        {
+          "day": "Ter",
+          "order": 2,
+          "start": "07:55",
+          "end": "08:40",
+          "shift": "manha"
+        },
+        {
+          "day": "Ter",
+          "order": 3,
+          "start": "09:00",
+          "end": "09:45",
+          "shift": "manha"
+        },
+        {
+          "day": "Ter",
+          "order": 4,
+          "start": "09:55",
+          "end": "10:40",
+          "shift": "manha"
+        },
+        {
+          "day": "Qua",
+          "order": 1,
+          "start": "07:10",
+          "end": "07:55",
+          "shift": "manha"
+        },
+        {
+          "day": "Qua",
+          "order": 2,
+          "start": "07:55",
+          "end": "08:40",
+          "shift": "manha"
+        },
+        {
+          "day": "Qua",
+          "order": 3,
+          "start": "09:00",
+          "end": "09:45",
+          "shift": "manha"
+        },
+        {
+          "day": "Qua",
+          "order": 4,
+          "start": "09:55",
+          "end": "10:40",
+          "shift": "manha"
+        },
+        {
+          "day": "Qui",
+          "order": 1,
+          "start": "07:10",
+          "end": "07:55",
+          "shift": "manha"
+        },
+        {
+          "day": "Qui",
+          "order": 2,
+          "start": "07:55",
+          "end": "08:40",
+          "shift": "manha"
+        },
+        {
+          "day": "Qui",
+          "order": 3,
+          "start": "09:00",
+          "end": "09:45",
+          "shift": "manha"
+        },
+        {
+          "day": "Qui",
+          "order": 4,
+          "start": "09:55",
+          "end": "10:40",
+          "shift": "manha"
+        },
+        {
+          "day": "Sex",
+          "order": 1,
+          "start": "07:10",
+          "end": "07:55",
+          "shift": "manha"
+        },
+        {
+          "day": "Sex",
+          "order": 2,
+          "start": "07:55",
+          "end": "08:40",
+          "shift": "manha"
+        },
+        {
+          "day": "Sex",
+          "order": 3,
+          "start": "09:00",
+          "end": "09:45",
+          "shift": "manha"
+        },
+        {
+          "day": "Sex",
+          "order": 4,
+          "start": "09:55",
+          "end": "10:40",
+          "shift": "manha"
+        }
+      ]
+    },
+    "7A": {
+      "school_id": "Norte",
+      "students": 27,
+      "slots": [
+        {
+          "day": "Seg",
+          "order": 1,
+          "start": "13:00",
+          "end": "13:45",
+          "shift": "tarde"
+        },
+        {
+          "day": "Seg",
+          "order": 2,
+          "start": "13:45",
+          "end": "14:30",
+          "shift": "tarde"
+        },
+        {
+          "day": "Seg",
+          "order": 3,
+          "start": "14:50",
+          "end": "15:35",
+          "shift": "tarde"
+        },
+        {
+          "day": "Seg",
+          "order": 4,
+          "start": "15:45",
+          "end": "16:30",
+          "shift": "tarde"
+        },
+        {
+          "day": "Ter",
+          "order": 1,
+          "start": "13:00",
+          "end": "13:45",
+          "shift": "tarde"
+        },
+        {
+          "day": "Ter",
+          "order": 2,
+          "start": "13:45",
+          "end": "14:30",
+          "shift": "tarde"
+        },
+        {
+          "day": "Ter",
+          "order": 3,
+          "start": "14:50",
+          "end": "15:35",
+          "shift": "tarde"
+        },
+        {
+          "day": "Ter",
+          "order": 4,
+          "start": "15:45",
+          "end": "16:30",
+          "shift": "tarde"
+        },
+        {
+          "day": "Qua",
+          "order": 1,
+          "start": "13:00",
+          "end": "13:45",
+          "shift": "tarde"
+        },
+        {
+          "day": "Qua",
+          "order": 2,
+          "start": "13:45",
+          "end": "14:30",
+          "shift": "tarde"
+        },
+        {
+          "day": "Qua",
+          "order": 3,
+          "start": "14:50",
+          "end": "15:35",
+          "shift": "tarde"
+        },
+        {
+          "day": "Qua",
+          "order": 4,
+          "start": "15:45",
+          "end": "16:30",
+          "shift": "tarde"
+        },
+        {
+          "day": "Qui",
+          "order": 1,
+          "start": "13:00",
+          "end": "13:45",
+          "shift": "tarde"
+        },
+        {
+          "day": "Qui",
+          "order": 2,
+          "start": "13:45",
+          "end": "14:30",
+          "shift": "tarde"
+        },
+        {
+          "day": "Qui",
+          "order": 3,
+          "start": "14:50",
+          "end": "15:35",
+          "shift": "tarde"
+        },
+        {
+          "day": "Qui",
+          "order": 4,
+          "start": "15:45",
+          "end": "16:30",
+          "shift": "tarde"
+        },
+        {
+          "day": "Sex",
+          "order": 1,
+          "start": "13:00",
+          "end": "13:45",
+          "shift": "tarde"
+        },
+        {
+          "day": "Sex",
+          "order": 2,
+          "start": "13:45",
+          "end": "14:30",
+          "shift": "tarde"
+        },
+        {
+          "day": "Sex",
+          "order": 3,
+          "start": "14:50",
+          "end": "15:35",
+          "shift": "tarde"
+        },
+        {
+          "day": "Sex",
+          "order": 4,
+          "start": "15:45",
+          "end": "16:30",
+          "shift": "tarde"
+        }
+      ]
+    }
+  },
+  "teachers": {
+    "Paulo": {
+      "organization_id": "RedeAlfa",
+      "availability": [
+        {
+          "day": "Seg",
+          "start": "07:00",
+          "end": "17:30"
+        },
+        {
+          "day": "Ter",
+          "start": "07:00",
+          "end": "17:30"
+        },
+        {
+          "day": "Qua",
+          "start": "07:00",
+          "end": "17:30"
+        },
+        {
+          "day": "Qui",
+          "start": "07:00",
+          "end": "17:30"
+        },
+        {
+          "day": "Sex",
+          "start": "07:00",
+          "end": "17:30"
+        }
+      ],
+      "weekly_limit": 12,
+      "daily_limits": {
+        "Seg": 5,
+        "Ter": 5,
+        "Qua": 5,
+        "Qui": 5,
+        "Sex": 5
+      }
+    },
+    "Luiza": {
+      "organization_id": "RedeAlfa",
+      "availability": [
+        {
+          "day": "Seg",
+          "start": "07:00",
+          "end": "10:40"
+        },
+        {
+          "day": "Ter",
+          "start": "07:00",
+          "end": "10:40"
+        },
+        {
+          "day": "Qua",
+          "start": "07:00",
+          "end": "10:40"
+        },
+        {
+          "day": "Qui",
+          "start": "07:00",
+          "end": "10:40"
+        },
+        {
+          "day": "Sex",
+          "start": "07:00",
+          "end": "10:40"
+        }
+      ],
+      "weekly_limit": 8,
+      "daily_limits": {
+        "Seg": 3,
+        "Ter": 3,
+        "Qua": 3,
+        "Qui": 3,
+        "Sex": 3
+      }
+    },
+    "Clara": {
+      "organization_id": "RedeAlfa",
+      "availability": [
+        {
+          "day": "Seg",
+          "start": "07:00",
+          "end": "10:40"
+        },
+        {
+          "day": "Ter",
+          "start": "07:00",
+          "end": "10:40"
+        },
+        {
+          "day": "Qua",
+          "start": "07:00",
+          "end": "10:40"
+        },
+        {
+          "day": "Qui",
+          "start": "07:00",
+          "end": "10:40"
+        },
+        {
+          "day": "Sex",
+          "start": "07:00",
+          "end": "10:40"
+        }
+      ],
+      "weekly_limit": 6,
+      "daily_limits": {
+        "Seg": 3,
+        "Ter": 3,
+        "Qua": 3,
+        "Qui": 3,
+        "Sex": 3
+      }
+    },
+    "Ana": {
+      "organization_id": "RedeAlfa",
+      "availability": [
+        {
+          "day": "Seg",
+          "start": "13:00",
+          "end": "16:30"
+        },
+        {
+          "day": "Ter",
+          "start": "13:00",
+          "end": "16:30"
+        },
+        {
+          "day": "Qua",
+          "start": "13:00",
+          "end": "16:30"
+        },
+        {
+          "day": "Qui",
+          "start": "13:00",
+          "end": "16:30"
+        },
+        {
+          "day": "Sex",
+          "start": "13:00",
+          "end": "16:30"
+        }
+      ],
+      "weekly_limit": 6,
+      "daily_limits": {
+        "Seg": 3,
+        "Ter": 3,
+        "Qua": 3,
+        "Qui": 3,
+        "Sex": 3
+      }
+    },
+    "Beto": {
+      "organization_id": "RedeAlfa",
+      "availability": [
+        {
+          "day": "Seg",
+          "start": "13:00",
+          "end": "16:30"
+        },
+        {
+          "day": "Ter",
+          "start": "13:00",
+          "end": "16:30"
+        },
+        {
+          "day": "Qua",
+          "start": "13:00",
+          "end": "16:30"
+        },
+        {
+          "day": "Qui",
+          "start": "13:00",
+          "end": "16:30"
+        },
+        {
+          "day": "Sex",
+          "start": "13:00",
+          "end": "16:30"
+        }
+      ],
+      "weekly_limit": 4,
+      "daily_limits": {
+        "Seg": 2,
+        "Ter": 2,
+        "Qua": 2,
+        "Qui": 2,
+        "Sex": 2
+      }
+    }
+  },
+  "resources": {
+    "LabCentro": {
+      "school_id": "Centro",
+      "max_groups": 1,
+      "max_students": 30,
+      "availability": [
+        {
+          "day": "Seg",
+          "start": "07:00",
+          "end": "10:40"
+        },
+        {
+          "day": "Ter",
+          "start": "07:00",
+          "end": "10:40"
+        },
+        {
+          "day": "Qua",
+          "start": "07:00",
+          "end": "10:40"
+        },
+        {
+          "day": "Qui",
+          "start": "07:00",
+          "end": "10:40"
+        },
+        {
+          "day": "Sex",
+          "start": "07:00",
+          "end": "10:40"
+        }
+      ]
+    },
+    "LabNorte": {
+      "school_id": "Norte",
+      "max_groups": 1,
+      "max_students": 30,
+      "availability": [
+        {
+          "day": "Seg",
+          "start": "13:00",
+          "end": "16:30"
+        },
+        {
+          "day": "Ter",
+          "start": "13:00",
+          "end": "16:30"
+        },
+        {
+          "day": "Qua",
+          "start": "13:00",
+          "end": "16:30"
+        },
+        {
+          "day": "Qui",
+          "start": "13:00",
+          "end": "16:30"
+        },
+        {
+          "day": "Sex",
+          "start": "13:00",
+          "end": "16:30"
+        }
+      ]
+    }
+  },
+  "travel_minutes": {
+    "Centro->Norte": 25,
+    "Norte->Centro": 35
+  },
+  "demands": [
+    {
+      "class_id": "6A",
+      "subject": "Matemática",
+      "teacher_id": "Paulo",
+      "lessons": 4,
+      "max_consecutive": 2
+    },
+    {
+      "class_id": "6A",
+      "subject": "Português",
+      "teacher_id": "Luiza",
+      "lessons": 4,
+      "max_consecutive": 2
+    },
+    {
+      "class_id": "6A",
+      "subject": "Ciências",
+      "teacher_id": "Clara",
+      "lessons": 2,
+      "max_consecutive": 1,
+      "resource_id": "LabCentro"
+    },
+    {
+      "class_id": "6B",
+      "subject": "Matemática",
+      "teacher_id": "Paulo",
+      "lessons": 3,
+      "max_consecutive": 2
+    },
+    {
+      "class_id": "6B",
+      "subject": "Português",
+      "teacher_id": "Luiza",
+      "lessons": 3,
+      "max_consecutive": 2
+    },
+    {
+      "class_id": "6B",
+      "subject": "Ciências",
+      "teacher_id": "Clara",
+      "lessons": 2,
+      "max_consecutive": 1,
+      "resource_id": "LabCentro"
+    },
+    {
+      "class_id": "7A",
+      "subject": "Matemática",
+      "teacher_id": "Paulo",
+      "lessons": 4,
+      "max_consecutive": 2
+    },
+    {
+      "class_id": "7A",
+      "subject": "Português",
+      "teacher_id": "Ana",
+      "lessons": 4,
+      "max_consecutive": 2,
+      "avoid_days": [
+        "Sex"
+      ]
+    },
+    {
+      "class_id": "7A",
+      "subject": "Ciências",
+      "teacher_id": "Beto",
+      "lessons": 2,
+      "max_consecutive": 1,
+      "resource_id": "LabNorte"
+    }
+  ]
+}
