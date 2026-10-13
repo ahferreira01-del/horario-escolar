@@ -32,6 +32,7 @@ class CPSAT:
     def __init__(self):
         self.names: list[str] = []
         self.constraints: list[tuple[dict[int, int], float, float]] = []
+        self.solution_hints: dict[int, int] = {}
 
     def var(self, name: str) -> int:
         idx = len(self.names)
@@ -47,6 +48,19 @@ class CPSAT:
             if number:
                 coefficients[int(index)] = int(round(number))
         self.constraints.append((coefficients, float(low), float(high)))
+
+    def set_solution_hints(self, values: dict[int, int]):
+        """Dicas apenas para a segunda etapa. Não mudam as restrições.
+
+        O resultado de cobertura da primeira etapa é uma solução viável
+        para suas variáveis; a etapa secundária pode então continuar a busca.
+        """
+        for index, value in values.items():
+            if type(index) is not int or not 0 <= index < len(self.names):
+                raise ValueError("Índice inválido em dica CP-SAT.")
+            if type(value) is not int or value not in (0, 1):
+                raise ValueError("Dica CP-SAT precisa ser binária.")
+        self.solution_hints = dict(values)
 
     def solve(self, costs, time_limit):
         model = cp_model.CpModel()
@@ -70,10 +84,14 @@ class CPSAT:
             for index, weight in costs.items() if weight
         )
         model.Minimize(objective)
+        for i, value in self.solution_hints.items():
+            model.AddHint(xs[i], value)
 
         solver = cp_model.CpSolver()
         solver.parameters.max_time_in_seconds = float(time_limit)
-        solver.parameters.num_search_workers = 1
+        # Etapa de cobertura mantém busca determinística; na etapa secundária
+        # com dicas de solução, quatro workers exploram distribuições melhores.
+        solver.parameters.num_search_workers = 4 if self.solution_hints else 1
         solver.parameters.random_seed = 42
         status = solver.Solve(model)
         if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
