@@ -102,6 +102,7 @@ def test_development_does_not_require_smtp_or_https():
     "redis://:pass@redis:70000/0",
     "redis://:pass@redis:6379/3",
     "http://:pass@redis:6379/0",
+    "redis://:pass@external-host.example.org:6379/0",
 ])
 def test_production_requires_authenticated_redis(bad_url):
     with pytest.raises((RuntimeError,ValueError), match="Redis|AUTH_RATE_LIMIT_REDIS_URL|Port"):
