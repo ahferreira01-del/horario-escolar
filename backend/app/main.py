@@ -16,6 +16,7 @@ from .security import (current_user, require_csrf, make_session, set_auth_cookie
                        hash_password, new_invitation_token, token_hash, ROLE_PERMISSIONS,
                        KNOWN_PERMISSIONS, authorize, permitted, role_can_delegate)
 from .emailer import send_invitation
+from .login_throttle import check_login_attempt, clear_successful_login, check_auth_backend
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -123,6 +124,7 @@ def ready():
         state = verify_database_isolation()
         if settings.environment == "production" and state.get("rls") != "enforced":
             raise RuntimeError("Contrato RLS não validado.")
+        check_auth_backend()
     except Exception as exc:
         raise HTTPException(503, "Serviço temporariamente indisponível.") from exc
     return {"status": "ready"}
@@ -130,9 +132,13 @@ def ready():
 
 @app.post("/api/auth/login")
 def login(data: Login, response: Response, db: Session = Depends(get_db)):
-    user = db.scalar(select(User).where(User.email == data.email.lower().strip()))
+    normalized_email = data.email.lower().strip()
+    # Limite distribuído funciona ANTES de consultar usuário ou fazer Argon2.
+    check_login_attempt(normalized_email)
+    user = db.scalar(select(User).where(User.email == normalized_email))
     if not user or not user.is_active or not verify_password(data.password, user.password_hash):
         raise HTTPException(401, "E-mail ou senha inválidos.")
+    clear_successful_login(normalized_email)
     token, csrf = make_session(user)
     set_auth_cookie(response, token)
     return {"message": "Acesso autorizado.", "csrf": csrf}
