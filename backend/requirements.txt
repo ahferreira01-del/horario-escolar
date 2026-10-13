@@ -8,6 +8,7 @@ pydantic[email]>=2.9,<3
 pydantic-settings>=2.5,<3
 pytest>=9,<10
 httpx>=0.28,<1
+redis[hiredis]>=5.2,<7  # Limites de autenticação compartilhados em produção
 
 # Solver principal MILP/HiGHS; adaptador CP-SAT experimental opt-in (Fase 4O)
 numpy>=2.1,<3
