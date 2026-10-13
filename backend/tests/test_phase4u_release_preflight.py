@@ -26,6 +26,8 @@ def synthetic_config():
         "HI_DB_OWNER_URL":f"postgresql+psycopg://horario_owner:{owner}@db:5432/horario",
         "HI_DB_RUNTIME_URL":f"postgresql+psycopg://horario_runtime:{runtime}@db:5432/horario",
         "HI_SESSION_SECRET":"C"*64,
+        "HI_REDIS_PASSWORD":"D"*48,
+        "HI_AUTH_REDIS_URL":"redis://:"+"D"*48+"@redis:6379/0",
         "HI_SMTP_HOST":"smtp.escolas-teste.org",
         "HI_SMTP_PORT":"587",
         "HI_SMTP_USER":"email-user",
@@ -84,8 +86,22 @@ def test_readiness_returns_503_without_exposing_internal_exception(monkeypatch):
 
 def test_prod_readiness_rejects_no_rls(monkeypatch):
     monkeypatch.setattr(main.settings,"environment","production")
+    monkeypatch.setattr(main,"check_auth_backend",lambda: None)
     monkeypatch.setattr(runtime_checks,"verify_database_isolation",
                         lambda:{"engine":"sqlite","rls":"not_available"})
     with pytest.raises(HTTPException) as error:
         main.ready()
     assert error.value.status_code==503
+
+
+def test_production_readiness_rejects_redis_outage(monkeypatch):
+    monkeypatch.setattr(main.settings,"environment","production")
+    monkeypatch.setattr(runtime_checks,"verify_database_isolation",
+                        lambda:{"engine":"postgresql","rls":"enforced"})
+    def unavailable():
+        raise RuntimeError("internal_auth_cache_secret")
+    monkeypatch.setattr(main,"check_auth_backend",unavailable)
+    with pytest.raises(HTTPException) as error:
+        main.ready()
+    assert error.value.status_code==503
+    assert "secret" not in error.value.detail
