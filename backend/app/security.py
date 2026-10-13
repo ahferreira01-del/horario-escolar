@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 import secrets, hashlib
+from functools import lru_cache
 import jwt
 from argon2 import PasswordHasher
 from fastapi import HTTPException, status, Request, Depends
@@ -34,6 +35,16 @@ def verify_password(raw: str, digest: str) -> bool:
         return ph.verify(digest, raw)
     except Exception:
         return False
+
+
+@lru_cache(maxsize=1)
+def dummy_password_hash() -> str:
+    """Executa Argon2 também para usuário inexistente/inativo.
+
+    O valor é apenas um hash de referência não vinculado a conta real.
+    Evita resposta imediatamente mais rápida para endereços não cadastrados.
+    """
+    return ph.hash("unassigned-account-constant-time-comparison-only")
 
 
 def token_hash(raw: str) -> str:
