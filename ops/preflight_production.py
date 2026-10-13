@@ -82,7 +82,7 @@ def validate_config(values: dict[str, str]) -> list[str]:
     try:
         redis_url=urlsplit(values.get("HI_AUTH_REDIS_URL", ""))
         if (redis_url.scheme!="redis" or redis_url.hostname!="redis"
-                or redis_url.port!=6379 or redis_url.username is not None
+                or redis_url.port!=6379 or redis_url.username not in (None, "")
                 or redis_url.password!=values.get("HI_REDIS_PASSWORD")
                 or redis_url.path!="/0"):
             errors.append("HI_AUTH_REDIS_URL: senha, host ou porta incompatíveis")
