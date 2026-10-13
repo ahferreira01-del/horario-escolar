@@ -9,9 +9,10 @@ pydantic-settings>=2.5,<3
 pytest>=9,<10
 httpx>=0.28,<1
 
-# Fase 2: adapter experimental do solver MILP/HiGHS (não é CP-SAT definitivo)
+# Solver principal MILP/HiGHS; adaptador CP-SAT experimental opt-in (Fase 4O)
 numpy>=2.1,<3
 scipy>=1.15,<2
+ortools>=9.12,<10
 
 # Controle versionado do esquema (somente usuário de migração)
 alembic>=1.17,<2
