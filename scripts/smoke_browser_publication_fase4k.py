@@ -93,8 +93,8 @@ def _school_publish_flow(director_page, info):
 
         # Publicação é passo independente, apenas após a aprovação.
         official = director_page.locator('section[aria-label="Publicação oficial"]')
-        official.get_by_role("button", name="Atualizar histórico").click()
-        expect(official.locator("#pub-proposal option")).to_have_count(2)
+        # A aprovação deve atualizar a seção de publicação sem clique manual.
+        expect(official.locator("#pub-proposal option")).to_have_count(2, timeout=18000)
         official.locator("#pub-proposal").select_option(index=1)
         official.locator('input[type="checkbox"]').first.check()
         official.locator("#pub-from").fill("2028-02-07")
