@@ -14,7 +14,8 @@ from .solver_preview import all_grid, validate_solution
 
 def controlled_preview(data: dict, *, engine: str = "milp",
                        enable_experimental: bool = False,
-                       fallback_on_unsolved: bool = False) -> dict:
+                       fallback_on_unsolved: bool = False,
+                       secondary_time_limit: int | None = None) -> dict:
     """Executa engine explicitamente selecionado, verifica saída e registra rollback.
 
     Apenas 'unsolved' do CP-SAT pode cair para MILP, e SOMENTE com dois
@@ -29,8 +30,17 @@ def controlled_preview(data: dict, *, engine: str = "milp",
     if fallback_on_unsolved and engine != "cpsat":
         raise ValueError("Rollback experimental só se aplica ao CP-SAT.")
 
+    if secondary_time_limit is not None and (
+        engine != "cpsat" or type(secondary_time_limit) is not int
+        or not 1 <= secondary_time_limit <= 15
+    ):
+        raise ValueError("Limite secundário CP-SAT deve ser inteiro de 1 a 15 segundos.")
+
     started = perf_counter()
-    result = all_grid(deepcopy(data), engine=engine)
+    solver_options = {"engine": engine}
+    if secondary_time_limit is not None:
+        solver_options["secondary_time_limit"] = secondary_time_limit
+    result = all_grid(deepcopy(data), **solver_options)
     if not isinstance(result, dict):
         raise RuntimeError("Motor retornou resposta inválida.")
     state = result.get("result")
@@ -69,6 +79,7 @@ def controlled_preview(data: dict, *, engine: str = "milp",
             "executed": "milp" if rolled_back else engine,
             "fallback_used": rolled_back,
             "fallback_reason": "experimental_unsolved" if rolled_back else None,
+            "secondary_time_limit": secondary_time_limit if engine == "cpsat" else None,
             "primary_elapsed_seconds": elapsed_primary,
             "fallback_elapsed_seconds": elapsed_fallback,
         }
