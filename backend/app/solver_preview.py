@@ -316,21 +316,7 @@ def all_grid(data, *, engine='milp'):
             # O primeiro estágio já fornece uma solução para as variáveis
             # de aulas. O segundo usa essas escolhas como dica, nunca como
             # fixação: pode realocar aulas para melhorar dias/turnos.
-            selected_coverage={v for v in all_vars if coverage.x[v]>0.5}
-            hints={v:int(v in selected_coverage) for v in all_vars}
-            # Inclui também as variáveis auxiliares de dia e turno,
-            # inferidas exatamente das aulas selecionadas na cobertura.
-            # Dicas incompletas dessas variáveis atrasavam a extensão do
-            # modelo e podiam consumir o orçamento secundário do CP-SAT.
-            for (teacher,day),v in dayvars.items():
-                hints[v]=int(any(c['var'] in selected_coverage and
-                                 c['teacher']==teacher and c['day']==day
-                                 for c in choices))
-            for (teacher,day,shift),v in shiftvars.items():
-                hints[v]=int(any(c['var'] in selected_coverage and
-                                 c['teacher']==teacher and c['day']==day and
-                                 c['shift']==shift for c in choices))
-            mdl.set_solution_hints(hints)
+            mdl.set_solution_hints({v:int(coverage.x[v]>0.5) for v in all_vars})
         optimal=mdl.solve(objective,data.get('time_limit',12))
         selected=optimal.x if optimal.x is not None else coverage.x
     else:
