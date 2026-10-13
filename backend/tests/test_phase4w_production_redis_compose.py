@@ -50,7 +50,13 @@ def test_production_compose_redis_uses_container_password_and_healthcheck(tmp_pa
         assert "NOAUTH" in unauthenticated.stdout+unauthenticated.stderr
         ps=run("ps","--format","json","redis")
         assert ps.returncode==0,ps.stderr[-500:]
-        rows=[json.loads(line) for line in ps.stdout.splitlines() if line.strip()]
+        # Docker Compose versions may emit either an array or NDJSON.
+        try:
+            raw=json.loads(ps.stdout)
+            rows=raw if isinstance(raw,list) else [raw]
+        except json.JSONDecodeError:
+            rows=[json.loads(line) for line in ps.stdout.splitlines()
+                  if line.strip()]
         assert len(rows)==1,rows
         assert rows[0]["State"]=="running"
         # A ausência de portas expostas na configuração já tem teste estático.
