@@ -108,7 +108,24 @@ def deliver_invitation(email, url):
 
 @app.get("/api/health")
 def health():
+    # Liveness: processo responde, mesmo que a conexão externa esteja instável.
     return {"status": "ok", "service": "horario-inteligente-api", "phase": "foundation"}
+
+
+@app.get("/api/ready", include_in_schema=False)
+def ready():
+    """Readiness: exige conexão ao banco e contrato RLS seguro no PostgreSQL.
+
+    Não vaza detalhes de schema, credenciais, políticas ou conexão externa.
+    """
+    from .runtime_checks import verify_database_isolation
+    try:
+        state = verify_database_isolation()
+        if settings.environment == "production" and state.get("rls") != "enforced":
+            raise RuntimeError("Contrato RLS não validado.")
+    except Exception as exc:
+        raise HTTPException(503, "Serviço temporariamente indisponível.") from exc
+    return {"status": "ready"}
 
 
 @app.post("/api/auth/login")
