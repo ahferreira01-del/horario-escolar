@@ -17,7 +17,7 @@ type Preview = {result:string;solver_status:string;total_required:number;total_a
 const days=["Segunda","Terça","Quarta","Quinta","Sexta","Sábado","Domingo"];
 const newPeriod=():Period=>({weekday:0,position:1,start:"07:10",end:"07:55",shift:"manha"});
 
-export default function PlanningPanel({tenantId,schools,teachers,csrf,canRead,canWrite,canPreview,canProposalsRead,canProposalsCreate,canProposalsSubmit,canProposalsApprove,canPublish}:{tenantId:string;schools:School[];teachers:Teacher[];csrf:string;canRead:boolean;canWrite:boolean;canPreview:boolean;canProposalsRead:boolean;canProposalsCreate:boolean;canProposalsSubmit:boolean;canProposalsApprove:boolean;canPublish:boolean}) {
+export default function PlanningPanel({tenantId,currentUserId,schools,teachers,csrf,canRead,canWrite,canPreview,canProposalsRead,canProposalsCreate,canProposalsSubmit,canProposalsApprove,canPublish}:{tenantId:string;currentUserId:string;schools:School[];teachers:Teacher[];csrf:string;canRead:boolean;canWrite:boolean;canPreview:boolean;canProposalsRead:boolean;canProposalsCreate:boolean;canProposalsSubmit:boolean;canProposalsApprove:boolean;canPublish:boolean}) {
   const [schoolId,setSchoolId]=useState("");const [yearId,setYearId]=useState("");const [classId,setClassId]=useState("");
   const [years,setYears]=useState<Year[]>([]);const [subjects,setSubjects]=useState<Subject[]>([]);const [classes,setClasses]=useState<Class[]>([]);const [resources,setResources]=useState<Resource[]>([]);
   const [periods,setPeriods]=useState<Period[]>([newPeriod()]);const [assignments,setAssignments]=useState<Assignment[]>([]);
@@ -98,7 +98,7 @@ export default function PlanningPanel({tenantId,schools,teachers,csrf,canRead,ca
           <h3 style={{marginTop:20}}>Aulas encontradas</h3><div className="planner-table-scroll"><table className="data-table"><thead><tr><th>Turma</th><th>Dia</th><th>Aula</th><th>Horário</th><th>Disciplina</th><th>Professor</th></tr></thead><tbody>{preview.assignments.map((a,i)=><tr key={i}><td>{a.class_name}</td><td>{a.day}</td><td>{a.order}ª</td><td>{a.start}–{a.end}</td><td>{a.subject}</td><td>{a.teacher_name}</td></tr>)}</tbody></table></div>
         </div>}
       </div>
-      {canProposalsRead&&<ProposalsPanel prefix={prefix} yearId={yearId} csrf={csrf} profile={profile} canRead={canProposalsRead} canCreate={canProposalsCreate} canSubmit={canProposalsSubmit} canApprove={canProposalsApprove}/>}
+      {canProposalsRead&&<ProposalsPanel prefix={prefix} yearId={yearId} currentUserId={currentUserId} csrf={csrf} profile={profile} canRead={canProposalsRead} canCreate={canProposalsCreate} canSubmit={canProposalsSubmit} canApprove={canProposalsApprove}/>}
       {canProposalsRead&&<PublicationPanel tenantId={tenantId} schoolId={schoolId} yearId={yearId} csrf={csrf} canRead={canProposalsRead} canPublish={canPublish}/>}
     </>}
   </div>
