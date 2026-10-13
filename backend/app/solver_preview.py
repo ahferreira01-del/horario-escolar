@@ -374,16 +374,26 @@ def validate_solution(data,assigned):
     errors=[]
     by_cls=defaultdict(list);by_teacher=defaultdict(list);by_resource=defaultdict(list);by_demand=defaultdict(int)
     students=data['classes']; resources=data.get('resources',{}); travel=data.get('travel_minutes',{})
+    # Verificação independente: uma aula deve corresponder exatamente a uma
+    # atribuição cadastrada (turma, disciplina, docente e recurso obrigatório).
+    # Sem esta barreira um horário sintético poderia passar nas checagens de
+    # sobreposição mesmo sem atribuição docente válida.
+    authorized_demand_keys={
+        (d['class_id'], d['subject'], d['teacher_id'], d.get('resource_id'))
+        for d in data['demands']
+    }
     for a in assigned:
         cls=a['class_id'];t=a['teacher'];rid=a.get('resource_id')
         if cls not in students or t not in data['teachers']:
             errors.append('Professor/turma inexistente');continue
         school=students[cls]['school_id']
         if a['school_id']!=school:errors.append('Escola divergente')
+        if (cls,a['subject'],t,rid) not in authorized_demand_keys:
+            errors.append('Aula sem atribuição cadastrada para disciplina, professor e recurso')
         s,e=minute(a['start']),minute(a['end'])
         if not fits(a['day'],s,e,data['teachers'][t]['availability']):errors.append(f'Disponibilidade de {t}')
         original_slots=students[cls]['slots']
-        if not any(q['day']==a['day'] and q['order']==a['order'] and q['start']==a['start'] and q['end']==a['end'] for q in original_slots):
+        if not any(q['day']==a['day'] and q['order']==a['order'] and q['start']==a['start'] and q['end']==a['end'] and q['shift']==a.get('shift') for q in original_slots):
             errors.append('Período não cadastrado')
         by_cls[(cls,a['day'])].append((s,e,a));by_teacher[(t,a['day'])].append((s,e,a))
         by_demand[(cls,a['subject'],t,rid)]+=1
