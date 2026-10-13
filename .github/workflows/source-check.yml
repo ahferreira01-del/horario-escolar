@@ -1,0 +1,48 @@
+name: "00 - Verificar importação do código"
+on:
+  push:
+    branches:
+      - development/fase4i-homologacao
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  codigo-presente:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Exigir código da aplicação antes da homologação
+        shell: bash
+        run: |
+          set -euo pipefail
+          required=(
+            "backend/app/main.py"
+            "backend/app/publication.py"
+            "backend/alembic.ini"
+            "backend/requirements.txt"
+            "frontend/package.json"
+            "frontend/app/page.tsx"
+            "frontend/app/publication-panel.tsx"
+            "solver_poc_v0_2/solver.py"
+            "solver_poc_v0_2/tests/test_solver.py"
+            ".github/workflows/ci.yml"
+            "scripts/verify_ci_pg_fase4h.py"
+          )
+          missing=0
+          for path in "${required[@]}"; do
+            if [[ ! -s "$path" ]]; then
+              echo "::error title=Fase 4I ausente::Arquivo obrigatório não encontrado ou vazio: $path"
+              missing=1
+            fi
+          done
+          if [[ "$missing" -ne 0 ]]; then
+            echo "::error title=Importação pendente::NÃO HOMOLOGADO: o código Fase 4I ainda não foi importado."
+            exit 1
+          fi
+          echo "Estrutura mínima do projeto encontrada. Este job NÃO substitui os testes PostgreSQL/Next.js."
