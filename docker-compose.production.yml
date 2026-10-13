@@ -41,10 +41,10 @@ services:
     restart: unless-stopped
     environment:
       REDIS_PASSWORD: ${HI_REDIS_PASSWORD:?Set Redis authentication secret}
-    command: ["sh", "-ec", "exec redis-server --save '' --appendonly no --requirepass \"$REDIS_PASSWORD\""]
+    command: ["sh", "-ec", "exec redis-server --save '' --appendonly no --requirepass \"$$REDIS_PASSWORD\""]
     networks: [data_net]
     healthcheck:
-      test: ["CMD-SHELL", "REDISCLI_AUTH=$REDIS_PASSWORD redis-cli ping | grep -q PONG"]
+      test: ["CMD-SHELL", "REDISCLI_AUTH=$$REDIS_PASSWORD redis-cli ping | grep -q PONG"]
       interval: 10s
       timeout: 3s
       retries: 5
