@@ -8,7 +8,7 @@ from collections import Counter
 from app.solver_preview import all_grid, validate_solution
 
 
-def test_synthetic_two_schools_six_classes_shared_teachers_and_lab():
+def multischool_fixture():
     weekdays=['Seg','Ter','Qua','Qui']
     def slots(start,end):
         return [
@@ -54,6 +54,11 @@ def test_synthetic_two_schools_six_classes_shared_teachers_and_lab():
         ],
         'profile':'equilibrado','time_limit':5,
     }
+    return data
+
+
+def test_synthetic_two_schools_six_classes_shared_teachers_and_lab():
+    data=multischool_fixture()
     result=all_grid(data)
     assert result['result']=='complete',result
     assert result['total_required']==result['total_assigned']==6
