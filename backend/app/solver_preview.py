@@ -166,13 +166,21 @@ def check_input(data):
                 if a!=b: travel_minutes(travel,a,b)
     return periods
 
-def all_grid(data):
+def all_grid(data, *, engine='milp'):
+    # CP-SAT é opt-in e permanece experimental. A API continua usando MILP.
+    if engine not in ('milp','cpsat'):
+        raise ValueError('Motor desconhecido; use milp ou cpsat.')
     slots=check_input(data)
     teachers=data['teachers']; classes=data['classes']; demands=data['demands']
     resources=data.get('resources',{}); travel=data.get('travel_minutes',{})
     profile=data.get('profile','equilibrado')
     weights=(data['weights'] if profile=='personalizado' else PROFILES[profile])
-    mdl=MILP(); choices=[]
+    if engine=='cpsat':
+        from .solver_cpsat import CPSAT
+        mdl=CPSAT()
+    else:
+        mdl=MILP()
+    choices=[]
     by_d=defaultdict(list); by_cls_slot=defaultdict(list); by_teacher_day=defaultdict(list)
     by_resource_day=defaultdict(list); by_cls_day_sub_slot=defaultdict(list)
     for di,d in enumerate(demands):
@@ -366,7 +374,8 @@ def all_grid(data):
             'pending':pending,'assignments':output,'teacher_metrics':metrics,'profile':profile,
             'weights':weights,'conflicts':0,
             'scope':'Preview: uma organização, múltiplas escolas; API verifica RBAC; sem RLS validada/publicação/cross-tenant',
-            'optimizer':'SciPy HiGHS MILP; substituição por CP-SAT ainda pendente',
+            'optimizer':('OR-Tools CP-SAT (experimental, opt-in, sem ativação na API)'
+                         if engine=='cpsat' else 'SciPy HiGHS MILP; CP-SAT experimental disponível via opt-in'),
             'metric_note':'Gaps são períodos vazios disponíveis intraturno; additional_shifts é proxy de espera, NÃO minutos reais.'}
 
 def validate_solution(data,assigned):
