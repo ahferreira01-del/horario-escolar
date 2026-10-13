@@ -36,6 +36,9 @@ router = APIRouter(prefix='/api/tenants/{tenant_id}/publications', tags=['Public
 WEEKDAYS = ('Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab', 'Dom')
 MAX_DAYS = 370
 MAX_LESSONS = 2500
+# Limite global de ocorrências datadas: impede expansão desnecessária de
+# calendários grandes tanto na pré-validação como na publicação transacional.
+MAX_OCCURRENCES = MAX_LESSONS * 10
 
 class PublicationPart(BaseModel):
     school_id: str
@@ -86,22 +89,43 @@ def _local_utc(d: date, minute: int, tz: ZoneInfo) -> datetime:
     return utc
 
 
-def _events(rows: list[dict], schools: dict[str, School], from_date: date, to_date: date):
+def _events(rows: list[dict], schools: dict[str, School], from_date: date, to_date: date,
+            *, max_events: int = MAX_OCCURRENCES):
+    """Expande somente os dias de aula, com orçamento antes de materializar datas.
+
+    A soma de ocorrências é verificada ANTES de reservar a lista em memória,
+    evitando criar milhares de eventos apenas para rejeitá-los depois.
+    """
     events=[]
     zones={}
     for sid, school in schools.items():
         try: zones[sid]=ZoneInfo(school.timezone)
         except ZoneInfoNotFoundError: fail(f'Fuso inválido cadastrado para a unidade {sid}.',422)
+    span=(to_date-from_date).days
+    budget=0
     for r in rows:
-        d=from_date
+        weekday=r['weekday']
+        if type(weekday) is not int or not 0<=weekday<=6:
+            fail('Dia da semana inválido na grade publicada.',422)
+        if r['school_id'] not in zones:
+            fail('Unidade da aula não encontrada para conversão de fuso.',422)
+        if span<0: continue
+        first_offset=(weekday-from_date.weekday())%7
+        if first_offset>span: continue
+        occurrences=1+(span-first_offset)//7
+        budget+=occurrences
+        if budget>max_events:
+            fail('Quantidade elevada de ocorrências; divida a vigência.',422)
+    for r in rows:
+        first_offset=(r['weekday']-from_date.weekday())%7
+        d=from_date+timedelta(days=first_offset)
         while d<=to_date:
-            if d.weekday()==r['weekday']:
-                tz=zones[r['school_id']]
-                a=_local_utc(d,r['start_minute'],tz)
-                b=_local_utc(d,r['end_minute'],tz)
-                if b<=a: fail('Período horário inválido após conversão de fuso.')
-                events.append({**r,'date':d, 'start_utc':a,'end_utc':b})
-            d+=timedelta(days=1)
+            tz=zones[r['school_id']]
+            a=_local_utc(d,r['start_minute'],tz)
+            b=_local_utc(d,r['end_minute'],tz)
+            if b<=a: fail('Período horário inválido após conversão de fuso.')
+            events.append({**r,'date':d, 'start_utc':a,'end_utc':b})
+            d+=timedelta(days=7)
     return events
 
 
@@ -111,7 +135,7 @@ def _overlaps(a,b):
 
 def _check_published_conflicts(rows, existing, schools, travel):
     all_rows = rows + existing
-    if len(all_rows)>MAX_LESSONS * 10:
+    if len(all_rows)>MAX_OCCURRENCES:
         fail('Quantidade elevada de ocorrências; divida a vigência.',422)
     by_teacher=defaultdict(list)
     by_class=defaultdict(list)
@@ -343,8 +367,10 @@ def _build_events(db: Session, tenant_id: str, body: PublicationRequest, schools
             existing.extend(_events([{'school_id':l.school_id,'class_id':l.class_id,
                 'teacher_id':l.teacher_id,'resource_id':l.resource_id,
                 'weekday':l.weekday,'start_minute':l.start_minute,'end_minute':l.end_minute,
-                'students':l.students}],schools,max(p.valid_from.date(),week_start),min(p.valid_to.date(),week_end)))
-    fresh=_events(new_rows,schools,body.valid_from,body.valid_to)
+                'students':l.students}],schools,max(p.valid_from.date(),week_start),min(p.valid_to.date(),week_end),
+                max_events=MAX_OCCURRENCES-len(existing)))
+    fresh=_events(new_rows,schools,body.valid_from,body.valid_to,
+                  max_events=MAX_OCCURRENCES-len(existing))
     matrix={(x.from_school_id,x.to_school_id):x.minutes for x in db.scalars(select(SchoolTravelTime).where(SchoolTravelTime.tenant_id==tenant_id)).all()}
     res_ids={(e['school_id'],e['resource_id']) for e in fresh+existing if e['resource_id']}
     resources={(r.school_id,r.id):r for r in db.scalars(select(SchoolResource).where(SchoolResource.tenant_id==tenant_id)).all() if (r.school_id,r.id) in res_ids}
