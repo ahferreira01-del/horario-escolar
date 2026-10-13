@@ -48,6 +48,14 @@ def test_compose_production_no_public_db_or_api_ports(tmp_path):
     assert services["api"]["environment"]["COOKIE_SECURE"]=="true"
     assert services["api"]["environment"]["DATABASE_URL"].split("://")[1].startswith("horario_runtime:")
     assert services["migrate"]["environment"]["DATABASE_URL"].split("://")[1].startswith("horario_owner:")
+    assert set(services["db"]["networks"]) == {"data_net"}
+    assert set(services["redis"]["networks"]) == {"data_net"}
+    assert set(services["migrate"]["networks"]) == {"data_net"}
+    assert set(services["api"]["networks"]) == {"data_net","service_net"}
+    assert set(services["web"]["networks"]) == {"service_net","edge_net"}
+    assert set(services["edge"]["networks"]) == {"edge_net"}
+    assert not (set(services["edge"]["networks"]) & set(services["db"]["networks"]))
+    assert not (set(services["edge"]["networks"]) & set(services["redis"]["networks"]))
     assert "healthcheck" in services["api"]
     assert "healthcheck" in services["redis"]
     assert services["api"]["depends_on"]["redis"]["condition"]=="service_healthy"
