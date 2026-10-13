@@ -80,3 +80,33 @@ def build_scenario(classes: int = 12, *, time_limit: int = 5) -> dict:
             "Norte->Centro": 40,
         },
     }
+
+
+def build_feasible_scenario(classes: int = 12, *, time_limit: int = 5) -> dict:
+    """Versão de 4R com laboratório dimensionado para toda a carga semanal.
+
+    A capacidade é calculada a partir das janelas existentes (não presume
+    que capacidade significa solução), mantendo as mesmas turmas, docentes
+    compartilhados, deslocamentos e demandas da fixture 4P.
+    """
+    data = build_scenario(classes, time_limit=time_limit)
+    for school, resource in (("Centro", "Lab_Centro"), ("Norte", "Lab_Norte")):
+        assigned = [d for d in data["demands"]
+                    if d.get("resource_id") == resource]
+        required = sum(d["lessons"] for d in assigned)
+        possible = set()
+        for cfg in data["classes"].values():
+            if cfg["school_id"] != school:
+                continue
+            for slot in cfg["slots"]:
+                if any(a["day"] == slot["day"]
+                       and a["start"] <= slot["start"]
+                       and slot["end"] <= a["end"]
+                       for a in data["resources"][resource]["availability"]):
+                    possible.add((slot["day"], slot["start"], slot["end"]))
+        if not possible:
+            raise ValueError("Recurso do cenário sem janelas disponíveis.")
+        groups = max(1, (required + len(possible) - 1) // len(possible))
+        data["resources"][resource]["max_groups"] = groups
+        data["resources"][resource]["max_students"] = 25 * groups
+    return data
