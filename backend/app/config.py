@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     session_secret: str = "DEV_ONLY_CHANGE_ME_BEFORE_PRODUCTION_0000000000000000"
     environment: str = "development"
     public_app_url: str = "http://localhost:3000"
+    auth_rate_limit_redis_url: str = ""
     session_max_minutes: int = 120
     cookie_secure: bool = False
     smtp_host: str = ""
@@ -45,6 +46,14 @@ def validate_production_configuration(cfg: Settings) -> None:
             or public.username or public.password or public.query
             or public.fragment or public.port not in (None, 443)):
         raise RuntimeError("PUBLIC_APP_URL de produção deve usar HTTPS público.")
+    # Redis precisa exigir autenticação; em Docker o hostname é 'redis'.
+    rate_url = urlsplit(cfg.auth_rate_limit_redis_url)
+    if (rate_url.scheme not in ("redis", "rediss")
+            or not rate_url.hostname or not rate_url.password
+            or rate_url.username or rate_url.fragment
+            or rate_url.path not in ("", "/", "/0")
+            or rate_url.port not in (None, 6379)):
+        raise RuntimeError("AUTH_RATE_LIMIT_REDIS_URL autenticada é obrigatória em produção.")
     if not 5 <= cfg.session_max_minutes <= 1440:
         raise RuntimeError("SESSION_MAX_MINUTES fora de limites seguros (5–1440).")
     if (not cfg.smtp_host.strip() or not cfg.smtp_from.strip()
