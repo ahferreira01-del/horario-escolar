@@ -1,4 +1,5 @@
 import argparse
+import sys
 from sqlalchemy import text, select
 from .database import engine, Base, SessionLocal, bind_context
 from .models import User, Tenant, Role
@@ -56,8 +57,15 @@ if __name__ == "__main__":
     b = commands.add_parser("bootstrap-platform")
     b.add_argument("--email", required=True)
     b.add_argument("--name", required=True)
-    b.add_argument("--password", required=True)
+    secret_source = b.add_mutually_exclusive_group(required=True)
+    secret_source.add_argument("--password", help="Somente desenvolvimento: aparece na lista de processos.")
+    secret_source.add_argument("--password-stdin", action="store_true",
+                               help="Ler senha em linha única via stdin sem expor argv.")
     args = parser.parse_args()
     if args.cmd == "init-db": init_db()
     elif args.cmd == "sync-default-planning-permissions": sync_default_role_permissions()
-    else: bootstrap_platform(args.email, args.name, args.password)
+    else:
+        password = sys.stdin.readline().rstrip("\r\n") if args.password_stdin else args.password
+        if not password:
+            parser.error("Senha administrativa vazia.")
+        bootstrap_platform(args.email, args.name, password)
