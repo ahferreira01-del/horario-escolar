@@ -1,0 +1,144 @@
+name: Horário Inteligente — testes e homologação reproduzível
+on:
+  push:
+  pull_request:
+jobs:
+  backend_postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: horario
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: test_owner_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d horario" --health-interval 3s
+          --health-timeout 3s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Dependências Python
+        run: pip install -r backend/requirements.txt
+      - name: Criar conta isolada de runtime (PostgreSQL efêmero)
+        run: |
+          python - <<'PY'
+          import psycopg
+          with psycopg.connect('postgresql://postgres:test_owner_password@localhost:5432/horario',autocommit=True) as c:
+              c.execute("CREATE ROLE horario_runtime WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS NOINHERIT PASSWORD 'test_runtime_password'")
+          PY
+      - name: Migrar banco real + RLS
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql+psycopg://postgres:test_owner_password@localhost:5432/horario
+        run: alembic upgrade head
+      - name: Testar isolamento real, publicações, concorrência e relatórios
+        working-directory: backend
+        env:
+          DATABASE_URL: sqlite:///./ci-dev.sqlite
+          HI_TEST_PG_OWNER_URL: postgresql+psycopg://postgres:test_owner_password@localhost:5432/horario
+          HI_TEST_PG_RUNTIME_URL: postgresql+psycopg://horario_runtime:test_runtime_password@localhost:5432/horario
+        run: |
+          pytest -q -rs --junitxml=../backend_test_results.xml
+          python ../scripts/verify_ci_pg_fase4h.py ../backend_test_results.xml
+      - name: Smoke HTTP de desenvolvimento (SQLite, complementar)
+        run: python scripts/smoke_http_fase4g.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-test-results
+          path: backend_test_results.xml
+  frontend_browser_postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: horario
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: test_owner_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d horario" --health-interval 3s
+          --health-timeout 3s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Dependências e Chromium
+        run: |
+          pip install -r backend/requirements.txt 'playwright>=1.48,<2'
+          python -m playwright install --with-deps chromium
+          cd frontend
+          npm install --no-audit --no-fund
+      - name: Preparar PostgreSQL descartável com owner e runtime distintos
+        run: |
+          python - <<'PY'
+          import psycopg
+          with psycopg.connect('postgresql://postgres:test_owner_password@localhost:5432/horario',autocommit=True) as c:
+              c.execute("CREATE ROLE horario_runtime WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS NOINHERIT PASSWORD 'test_runtime_password'")
+          PY
+      - name: Migrar esquema e políticas RLS como OWNER
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql+psycopg://postgres:test_owner_password@localhost:5432/horario
+        run: alembic upgrade head
+      - name: Build Next.js e checagem TypeScript
+        working-directory: frontend
+        env:
+          API_BACKEND_URL: http://127.0.0.1:8000
+        run: |
+          npm run lint:types
+          npm run build
+          mkdir -p .next/standalone/.next
+          cp -a .next/static .next/standalone/.next/static
+          if [ -d public ]; then cp -a public .next/standalone/public; fi
+      - name: Criar administrador fictício via owner e iniciar API via runtime RLS
+        env:
+          DATABASE_URL: postgresql+psycopg://horario_runtime:test_runtime_password@127.0.0.1:5432/horario
+          ENVIRONMENT: development
+          SESSION_SECRET: test_ci_secret_very_long_only_for_ephemeral_homologation_123456789
+          COOKIE_SECURE: 'false'
+          PUBLIC_APP_URL: http://127.0.0.1:3000
+          API_BACKEND_URL: http://127.0.0.1:8000
+        run: |
+          set -e
+          (cd backend && DATABASE_URL=postgresql+psycopg://postgres:test_owner_password@127.0.0.1:5432/horario python -m app.cli bootstrap-platform --email admin-e2e@example.com --name 'Admin CI' --password 'Senha-Teste-Homologacao-123!')
+          (cd backend && nohup python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 >/tmp/horario-api.log 2>&1 &)
+          (cd frontend && PORT=3000 HOSTNAME=127.0.0.1 nohup node .next/standalone/server.js >/tmp/horario-web.log 2>&1 &)
+          for i in $(seq 1 60); do
+            if curl -sf http://127.0.0.1:8000/api/health >/dev/null && curl -sf http://127.0.0.1:3000/ >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          cat /tmp/horario-api.log /tmp/horario-web.log
+          exit 1
+      - name: Smoke Chromium integrado com PostgreSQL e RLS
+        env:
+          HI_BROWSER_URL: http://127.0.0.1:3000
+          HI_BROWSER_ADMIN_EMAIL: admin-e2e@example.com
+          HI_BROWSER_ADMIN_PASSWORD: Senha-Teste-Homologacao-123!
+        run: python scripts/smoke_browser_fase4h.py
+      - name: Coletar logs em caso de falha
+        if: failure()
+        run: |
+          cat /tmp/horario-api.log /tmp/horario-web.log 2>/dev/null || true
+  solver_legacy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: solver_poc_v0_2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt && pytest -q
