@@ -1,4 +1,6 @@
 from datetime import datetime, timedelta, timezone
+import os
+import re
 from contextlib import asynccontextmanager
 from urllib.parse import quote
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -105,6 +107,23 @@ def deliver_invitation(email, url):
     except Exception:
         raise HTTPException(503, "Não foi possível entregar o convite por e-mail.")
     return sent
+
+
+@app.get("/api/release", include_in_schema=False)
+def release_identity():
+    """Identidade pública do build para auditar homologação vs implantação.
+
+    HI_RELEASE_SHA deve ser configurado no provedor para o SHA real implantado;
+    não assume que o código no GitHub corresponde ao Replit.
+    """
+    raw_sha = os.getenv("HI_RELEASE_SHA", "").strip().lower()
+    verified_format = bool(re.fullmatch(r"[0-9a-f]{40}", raw_sha))
+    return {
+        "app": "horario-inteligente",
+        "api_version": app.version,
+        "release_sha": raw_sha if verified_format else None,
+        "release_identified": verified_format,
+    }
 
 
 @app.get("/api/health")
