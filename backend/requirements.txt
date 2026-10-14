@@ -1,0 +1,25 @@
+fastapi==0.128.2
+uvicorn[standard]>=0.34,<1
+sqlalchemy==2.0.50
+psycopg[binary]>=3.2,<4
+argon2-cffi>=25.1,<26
+PyJWT>=2.10,<3
+pydantic[email]>=2.9,<3
+pydantic-settings>=2.5,<3
+pytest>=9,<10
+httpx>=0.28,<1
+redis[hiredis]>=5.2,<7  # Limites de autenticação compartilhados em produção
+
+# Solver principal MILP/HiGHS; adaptador CP-SAT experimental opt-in (Fase 4O)
+numpy>=2.1,<3
+scipy>=1.15,<2
+ortools>=9.12,<10
+
+# Controle versionado do esquema (somente usuário de migração)
+alembic>=1.17,<2
+
+# Relatórios oficiais em PDF A4
+reportlab>=4.2,<5
+
+# Testes de contrato do workflow de homologação
+PyYAML>=6.0,<7

@@ -1,0 +1,10 @@
+﻿school_id,class_id,day,order,start,end,shift,subject,teacher,resource_id,students
+escola_centro,6A,Seg,2,07:55,08:40,manha,Matemática,paulo,,20
+escola_centro,6A,Seg,3,09:00,09:45,manha,Matemática,paulo,,20
+escola_centro,6A,Qui,2,07:55,08:40,manha,Matemática,paulo,,20
+escola_centro,6A,Qui,3,09:00,09:45,manha,Matemática,paulo,,20
+escola_centro,6A,Sex,2,07:55,08:40,manha,Matemática,paulo,,20
+escola_centro,6A,Sex,3,09:00,09:45,manha,Matemática,paulo,,20
+escola_centro,7B,Ter,1,07:10,07:55,manha,Ciências,maria,laboratorio,25
+escola_centro,7B,Qui,2,07:55,08:40,manha,Ciências,maria,laboratorio,25
+escola_centro,7B,Qui,3,09:00,09:45,manha,Ciências,maria,laboratorio,25

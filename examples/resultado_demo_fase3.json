@@ -1,0 +1,181 @@
+{
+  "result": "complete",
+  "solver_status": "OPTIMAL",
+  "coverage_proven_optimal": true,
+  "total_required": 3,
+  "total_assigned": 9,
+  "total_assigned_minutes": 405,
+  "required_minutes": 250,
+  "minute_mode_scheduled_minutes": 270,
+  "demand_coverage": [
+    {
+      "class_id": "6A",
+      "subject": "Matemática",
+      "teacher": "paulo",
+      "unit": "minutes",
+      "required": 250,
+      "delivered": 270,
+      "missing": 0,
+      "target_minutes": 250,
+      "minutes_scheduled": 270,
+      "lessons_scheduled": 6
+    },
+    {
+      "class_id": "7B",
+      "subject": "Ciências",
+      "teacher": "maria",
+      "unit": "lessons",
+      "required": 3,
+      "delivered": 3,
+      "missing": 0,
+      "target_minutes": null,
+      "minutes_scheduled": 135,
+      "lessons_scheduled": 3
+    }
+  ],
+  "pending": [],
+  "assignments": [
+    {
+      "class_id": "6A",
+      "school_id": "escola_centro",
+      "subject": "Matemática",
+      "teacher": "paulo",
+      "day": "Seg",
+      "order": 2,
+      "start": "07:55",
+      "end": "08:40",
+      "shift": "manha",
+      "resource_id": null,
+      "students": 20
+    },
+    {
+      "class_id": "6A",
+      "school_id": "escola_centro",
+      "subject": "Matemática",
+      "teacher": "paulo",
+      "day": "Seg",
+      "order": 3,
+      "start": "09:00",
+      "end": "09:45",
+      "shift": "manha",
+      "resource_id": null,
+      "students": 20
+    },
+    {
+      "class_id": "6A",
+      "school_id": "escola_centro",
+      "subject": "Matemática",
+      "teacher": "paulo",
+      "day": "Qui",
+      "order": 2,
+      "start": "07:55",
+      "end": "08:40",
+      "shift": "manha",
+      "resource_id": null,
+      "students": 20
+    },
+    {
+      "class_id": "6A",
+      "school_id": "escola_centro",
+      "subject": "Matemática",
+      "teacher": "paulo",
+      "day": "Qui",
+      "order": 3,
+      "start": "09:00",
+      "end": "09:45",
+      "shift": "manha",
+      "resource_id": null,
+      "students": 20
+    },
+    {
+      "class_id": "6A",
+      "school_id": "escola_centro",
+      "subject": "Matemática",
+      "teacher": "paulo",
+      "day": "Sex",
+      "order": 2,
+      "start": "07:55",
+      "end": "08:40",
+      "shift": "manha",
+      "resource_id": null,
+      "students": 20
+    },
+    {
+      "class_id": "6A",
+      "school_id": "escola_centro",
+      "subject": "Matemática",
+      "teacher": "paulo",
+      "day": "Sex",
+      "order": 3,
+      "start": "09:00",
+      "end": "09:45",
+      "shift": "manha",
+      "resource_id": null,
+      "students": 20
+    },
+    {
+      "class_id": "7B",
+      "school_id": "escola_centro",
+      "subject": "Ciências",
+      "teacher": "maria",
+      "day": "Ter",
+      "order": 1,
+      "start": "07:10",
+      "end": "07:55",
+      "shift": "manha",
+      "resource_id": "laboratorio",
+      "students": 25
+    },
+    {
+      "class_id": "7B",
+      "school_id": "escola_centro",
+      "subject": "Ciências",
+      "teacher": "maria",
+      "day": "Qui",
+      "order": 2,
+      "start": "07:55",
+      "end": "08:40",
+      "shift": "manha",
+      "resource_id": "laboratorio",
+      "students": 25
+    },
+    {
+      "class_id": "7B",
+      "school_id": "escola_centro",
+      "subject": "Ciências",
+      "teacher": "maria",
+      "day": "Qui",
+      "order": 3,
+      "start": "09:00",
+      "end": "09:45",
+      "shift": "manha",
+      "resource_id": "laboratorio",
+      "students": 25
+    }
+  ],
+  "teacher_metrics": {
+    "paulo": {
+      "lessons": 6,
+      "working_days": 3,
+      "gap_periods": 0,
+      "additional_shifts": 0
+    },
+    "maria": {
+      "lessons": 3,
+      "working_days": 2,
+      "gap_periods": 0,
+      "additional_shifts": 0
+    }
+  },
+  "profile": "equilibrado",
+  "weights": {
+    "gaps": 40,
+    "days": 30,
+    "pedagogy": 20,
+    "shifts": 10
+  },
+  "conflicts": 0,
+  "scope": "Preview: uma organização, múltiplas escolas; API verifica RBAC; sem RLS validada/publicação/cross-tenant",
+  "optimizer": "SciPy HiGHS MILP; substituição por CP-SAT ainda pendente",
+  "metric_note": "Gaps são períodos vazios disponíveis intraturno; additional_shifts é proxy de espera, NÃO minutos reais."
+}
