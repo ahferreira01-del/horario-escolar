@@ -4,9 +4,14 @@ on:
   pull_request:
 permissions:
   contents: read
+env:
+  # Nunca use o Package Firewall HTTP do Replit neste workflow.
+  PIP_INDEX_URL: https://pypi.org/simple
+  PIP_TRUSTED_HOST: ''
+  PIP_EXTRA_INDEX_URL: ''
 jobs:
   backend_postgres:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     services:
       postgres:
         image: postgres:16
@@ -24,8 +29,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Dependências Python
-        run: pip install -r backend/requirements.txt
+      - name: Validar PyPI HTTPS e instalar dependências Python travadas
+        run: |
+          python scripts/verify_ci_python_index.py
+          python -m pip install --disable-pip-version-check --no-input \
+            --require-hashes --only-binary=:all: \
+            --index-url "$PIP_INDEX_URL" -r backend/requirements-ci.lock
       - name: Criar conta isolada de runtime (PostgreSQL efêmero)
         run: |
           python - <<'PY'
@@ -59,7 +68,10 @@ jobs:
           name: backend-test-results
           path: backend_test_results.xml
   frontend_browser_postgres:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    env:
+      NPM_CONFIG_REGISTRY: https://registry.npmjs.org/
+      NPM_CONFIG_STRICT_SSL: 'true'
     services:
       postgres:
         image: postgres:16
@@ -77,6 +89,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Validar PyPI HTTPS e instalar dependências Python travadas
+        run: |
+          python scripts/verify_ci_python_index.py
+          python -m pip install --disable-pip-version-check --no-input \
+            --require-hashes --only-binary=:all: \
+            --index-url "$PIP_INDEX_URL" -r backend/requirements-ci.lock
+          python -m playwright install --with-deps chromium
       - uses: pnpm/action-setup@v4
         with:
           version: 10.26.1
@@ -86,11 +105,8 @@ jobs:
           node-version: '22'
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
-      - name: Dependências e Chromium
-        run: |
-          pip install -r backend/requirements.txt 'playwright>=1.48,<2'
-          python -m playwright install --with-deps chromium
-          pnpm install --frozen-lockfile --filter ./frontend
+      - name: Instalar frontend pelo lockfile congelado e registry HTTPS
+        run: pnpm install --frozen-lockfile --filter ./frontend --registry https://registry.npmjs.org/
       - name: Preflight Chromium headless obrigatório
         run: |
           python - <<'PY'
@@ -116,12 +132,13 @@ jobs:
         working-directory: frontend
         env:
           API_BACKEND_URL: http://127.0.0.1:8000
+          HI_NEXT_DIST_DIR: .next-production
         run: |
-          npm run lint:types
-          npm run build
-          mkdir -p .next/standalone/.next
-          cp -a .next/static .next/standalone/.next/static
-          if [ -d public ]; then cp -a public .next/standalone/public; fi
+          pnpm run lint:types
+          pnpm run build
+          mkdir -p .next-production/standalone/.next
+          cp -a .next-production/static .next-production/standalone/.next/static
+          if [ -d public ]; then cp -a public .next-production/standalone/public; fi
       - name: Criar administrador fictício via owner e iniciar API via runtime RLS
         env:
           DATABASE_URL: postgresql+psycopg://horario_runtime:test_runtime_password@127.0.0.1:5432/horario
@@ -135,7 +152,7 @@ jobs:
           set -e
           (cd backend && DATABASE_URL=postgresql+psycopg://postgres:test_owner_password@127.0.0.1:5432/horario python -m app.cli bootstrap-platform --email admin-e2e@example.com --name 'Admin CI' --password 'Senha-Teste-Homologacao-123!')
           (cd backend && nohup python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 >/tmp/horario-api.log 2>&1 &)
-          (cd frontend && PORT=3000 HOSTNAME=127.0.0.1 nohup node .next/standalone/server.js >/tmp/horario-web.log 2>&1 &)
+          (cd frontend && PORT=3000 HOSTNAME=127.0.0.1 HI_NEXT_DIST_DIR=.next-production nohup node .next-production/standalone/server.js >/tmp/horario-web.log 2>&1 &)
           for i in $(seq 1 60); do
             if curl -sf http://127.0.0.1:8000/api/health >/dev/null && curl -sf http://127.0.0.1:3000/ >/dev/null; then exit 0; fi
             sleep 2
@@ -163,20 +180,29 @@ jobs:
           HI_BROWSER_URL: http://127.0.0.1:3000
           HI_BROWSER_ADMIN_EMAIL: admin-e2e@example.com
           HI_BROWSER_ADMIN_PASSWORD: Senha-Teste-Homologacao-123!
-        run: python scripts/smoke_browser_fase4h.py
+        run: |
+          set -euo pipefail
+          python scripts/smoke_browser_fase4h.py | tee /tmp/horario-e2e-4h.log
+          grep -q '^BROWSER_PASSED:' /tmp/horario-e2e-4h.log
       - name: Fluxo escolar de ponta a ponta no Chromium e PostgreSQL
         env:
           HI_BROWSER_URL: http://127.0.0.1:3000
           HI_BROWSER_ADMIN_EMAIL: admin-e2e@example.com
           HI_BROWSER_ADMIN_PASSWORD: Senha-Teste-Homologacao-123!
-        run: python scripts/smoke_browser_school_fase4j.py
+        run: |
+          set -euo pipefail
+          python scripts/smoke_browser_school_fase4j.py | tee /tmp/horario-e2e-4j.log
+          grep -q '^SCHOOL_BROWSER_PASSED:' /tmp/horario-e2e-4j.log
       - name: E2E 4K — publicação apenas no PostgreSQL descartável
         id: e2e_4k
         env:
           HI_BROWSER_URL: http://127.0.0.1:3000
           HI_BROWSER_ADMIN_EMAIL: admin-e2e@example.com
           HI_BROWSER_ADMIN_PASSWORD: Senha-Teste-Homologacao-123!
-        run: python scripts/smoke_browser_publication_fase4k.py
+        run: |
+          set -euo pipefail
+          python scripts/smoke_browser_publication_fase4k.py | tee /tmp/horario-e2e-4k.log
+          grep -q '^OFFICIAL_BROWSER_PASSED:' /tmp/horario-e2e-4k.log
       - name: Registrar evidência oficial 4K
         if: ${{ success() && steps.e2e_4k.outcome == 'success' }}
         run: echo OFFICIAL_BROWSER_PASSED
@@ -185,7 +211,7 @@ jobs:
         run: |
           cat /tmp/horario-api.log /tmp/horario-web.log 2>/dev/null || true
   solver_legacy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: solver_poc_v0_2
@@ -194,4 +220,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: pip install -r requirements.txt && pytest -q
+      - name: Validar PyPI HTTPS e instalar dependências do solver travadas
+        run: |
+          python ../scripts/verify_ci_python_index.py
+          python -m pip install --disable-pip-version-check --no-input \
+            --require-hashes --only-binary=:all: \
+            --index-url "$PIP_INDEX_URL" -r requirements-ci.lock
+      - run: pytest -q
