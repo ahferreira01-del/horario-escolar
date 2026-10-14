@@ -1,3 +1,4 @@
+"""Testes unitários auxiliares com SQLite em memória; não comprovam RLS ou integração."""
 import urllib.parse
 import pytest
 from fastapi.testclient import TestClient

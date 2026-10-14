@@ -41,12 +41,16 @@ jobs:
       - name: Testar isolamento real, publicações, concorrência e relatórios
         working-directory: backend
         env:
-          DATABASE_URL: sqlite:///./ci-dev.sqlite
+          DATABASE_URL: postgresql+psycopg://postgres:test_owner_password@localhost:5432/horario
+          HI_REQUIRE_TEST_POSTGRES: '1'
+          HI_REQUIRE_DOCKER_TESTS: '1'
+          HI_REQUIRE_REDIS_E2E: '1'
           HI_TEST_PG_OWNER_URL: postgresql+psycopg://postgres:test_owner_password@localhost:5432/horario
           HI_TEST_PG_RUNTIME_URL: postgresql+psycopg://horario_runtime:test_runtime_password@localhost:5432/horario
         run: |
           pytest -q -rs --junitxml=../backend_test_results.xml
           python ../scripts/verify_ci_pg_fase4h.py ../backend_test_results.xml
+          python ../scripts/verify_ci_redis_fase4w.py ../backend_test_results.xml
       - name: Smoke HTTP de desenvolvimento (SQLite, complementar)
         run: python scripts/smoke_http_fase4g.py
       - uses: actions/upload-artifact@v4
@@ -82,6 +86,15 @@ jobs:
           python -m playwright install --with-deps chromium
           cd frontend
           npm install --no-audit --no-fund
+      - name: Preflight Chromium headless obrigatório
+        run: |
+          python - <<'PY'
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as playwright:
+              browser = playwright.chromium.launch(headless=True)
+              print(f"CI_CHROMIUM_LAUNCH_PASS={browser.version}")
+              browser.close()
+          PY
       - name: Preparar PostgreSQL descartável com owner e runtime distintos
         run: |
           python - <<'PY'
@@ -153,11 +166,15 @@ jobs:
           HI_BROWSER_ADMIN_PASSWORD: Senha-Teste-Homologacao-123!
         run: python scripts/smoke_browser_school_fase4j.py
       - name: E2E 4K — publicação apenas no PostgreSQL descartável
+        id: e2e_4k
         env:
           HI_BROWSER_URL: http://127.0.0.1:3000
           HI_BROWSER_ADMIN_EMAIL: admin-e2e@example.com
           HI_BROWSER_ADMIN_PASSWORD: Senha-Teste-Homologacao-123!
         run: python scripts/smoke_browser_publication_fase4k.py
+      - name: Registrar evidência oficial 4K
+        if: ${{ success() && steps.e2e_4k.outcome == 'success' }}
+        run: echo OFFICIAL_BROWSER_PASSED
       - name: Coletar logs em caso de falha
         if: failure()
         run: |

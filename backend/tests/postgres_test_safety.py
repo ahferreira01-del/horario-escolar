@@ -1,4 +1,6 @@
 """Reject PostgreSQL integration URLs that could target a non-disposable DB."""
+import os
+
 from sqlalchemy.engine import make_url
 
 
@@ -8,9 +10,18 @@ _EXPECTED = {
 }
 
 
-def validate_postgres_test_urls(owner_url: str | None, runtime_url: str | None) -> None:
+def validate_postgres_test_urls(
+    owner_url: str | None,
+    runtime_url: str | None,
+    *,
+    required: bool = False,
+) -> None:
     """Allow only the fixed, loopback-only credentials used by disposable CI."""
     if not owner_url and not runtime_url:
+        if required:
+            raise RuntimeError(
+                "O gate obrigatório de PostgreSQL não recebeu os URLs efêmeros owner/runtime."
+            )
         return
     if not owner_url or not runtime_url:
         raise RuntimeError("Os dois URLs do PostgreSQL efêmero precisam ser informados.")
@@ -45,3 +56,11 @@ def validate_postgres_test_urls(owner_url: str | None, runtime_url: str | None) 
         raise RuntimeError(
             "As URLs owner e runtime precisam apontar para o mesmo PostgreSQL descartável."
         )
+
+
+def postgres_tests_may_skip(owner_url: str | None, runtime_url: str | None) -> bool:
+    """Allow developer skips only outside the strict CI integration gate."""
+    return (
+        os.environ.get("HI_REQUIRE_TEST_POSTGRES") != "1"
+        and not (owner_url and runtime_url)
+    )

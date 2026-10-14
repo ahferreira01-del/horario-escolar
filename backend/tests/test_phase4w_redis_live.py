@@ -5,6 +5,7 @@ remove o contêiner ao terminar. Verifica Lua atômico, TTL e HTTP 429/503.
 Quando Docker não existe, deixa a limitação explícita como skip.
 """
 from concurrent.futures import ThreadPoolExecutor
+import os
 import shutil
 import socket
 import subprocess
@@ -23,6 +24,8 @@ from app.config import settings
 @pytest.fixture(scope="module")
 def live_redis():
     if not shutil.which("docker"):
+        if os.environ.get("HI_REQUIRE_REDIS_E2E") == "1":
+            pytest.fail("Gate Redis obrigatório: CLI Docker indisponível")
         pytest.skip("Docker indisponível: não executou integração Redis real")
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))

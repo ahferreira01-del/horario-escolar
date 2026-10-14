@@ -8,11 +8,15 @@ import os
 import uuid
 import pytest
 from sqlalchemy import create_engine, text
+from postgres_test_safety import postgres_tests_may_skip
 
 owner_url = os.getenv('HI_TEST_PG_OWNER_URL')
 runtime_url = os.getenv('HI_TEST_PG_RUNTIME_URL')
 
-@pytest.mark.skipif(not (owner_url and runtime_url), reason='PostgreSQL de integração não configurado')
+@pytest.mark.skipif(
+    postgres_tests_may_skip(owner_url, runtime_url),
+    reason='PostgreSQL efêmero opcional não configurado fora do gate CI obrigatório',
+)
 def test_postgres_rls_no_cross_tenant():
     from app.runtime_checks import verify_database_isolation
     own = create_engine(owner_url)
@@ -59,7 +63,10 @@ def test_postgres_rls_no_cross_tenant():
                 c.execute(text('DELETE FROM tenants WHERE id=:tid'),{'tid':tid})
         own.dispose(); run.dispose()
 
-@pytest.mark.skipif(not (owner_url and runtime_url), reason='PostgreSQL de integração não configurado')
+@pytest.mark.skipif(
+    postgres_tests_may_skip(owner_url, runtime_url),
+    reason='PostgreSQL efêmero opcional não configurado fora do gate CI obrigatório',
+)
 def test_postgres_guard_rejects_extra_permissive_policy():
     """Teste REAL de fail-closed: uma segunda política OR true não pode passar no startup.
 

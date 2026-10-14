@@ -4,6 +4,7 @@ Testa apenas Redis em projeto Docker temporário, com senhas fictícias.
 Não publica portas nem inicia API, Caddy, PostgreSQL ou dados reais.
 """
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -15,8 +16,11 @@ import pytest
 ROOT=Path(__file__).resolve().parents[2]
 
 
-@pytest.mark.skipif(shutil.which("docker") is None, reason="Docker indisponível")
 def test_production_compose_redis_uses_container_password_and_healthcheck(tmp_path):
+    if shutil.which("docker") is None:
+        if os.environ.get("HI_REQUIRE_REDIS_E2E") == "1":
+            pytest.fail("Gate Redis obrigatório: CLI Docker indisponível para Compose")
+        pytest.skip("Docker Compose indisponível: teste real do serviço Redis não executado")
     # Valores sintéticos; nunca ler a configuração real de operação.
     creds={
         "HI_PUBLIC_HOST":"hi-qa.example.invalid",
