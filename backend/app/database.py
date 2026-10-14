@@ -1,10 +1,7 @@
 from sqlalchemy import create_engine, event, text
-from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from sqlalchemy.orm import sessionmaker
 from .config import settings
-
-
-class Base(DeclarativeBase):
-    pass
+from .db_base import Base
 
 
 connect_args = {"check_same_thread": False} if settings.database_url.startswith("sqlite") else {}

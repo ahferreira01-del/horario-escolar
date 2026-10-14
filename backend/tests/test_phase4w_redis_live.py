@@ -36,7 +36,7 @@ def live_redis():
         "docker","run","--detach","--rm","--name",name,
         "--publish",f"127.0.0.1:{port}:6379",
         "--env",f"REDIS_PASSWORD={password}",
-        "redis:7-alpine","sh","-ec",
+        "redis:7-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499","sh","-ec",
         'exec redis-server --save "" --appendonly no --requirepass "$REDIS_PASSWORD"',
     ]
     result=subprocess.run(command,capture_output=True,text=True,timeout=120)

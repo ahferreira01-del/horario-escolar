@@ -3,19 +3,21 @@ import os
 from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
-from app.config import normalize_postgres_url, settings
-from app.database import Base
+from app.database_urls import normalize_postgres_url
+from app.db_base import Base
 import app.models  # noqa: F401 -- registra todas as tabelas
 
 config = context.config
 if config.config_file_name:
     fileConfig(config.config_file_name)
-if settings.environment == "production":
+if os.environ.get("ENVIRONMENT", "development").strip().lower() == "production":
     migration_database_url = os.environ.get("HI_MIGRATION_DATABASE_URL", "").strip()
     if not migration_database_url:
         raise RuntimeError("HI_MIGRATION_DATABASE_URL is required before production migrations")
     migration_database_url = normalize_postgres_url(migration_database_url)
 else:
+    from app.config import settings
+
     migration_database_url = settings.database_url
 config.set_main_option('sqlalchemy.url', migration_database_url.replace('%','%%'))
 target_metadata = Base.metadata

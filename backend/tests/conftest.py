@@ -15,9 +15,12 @@ def pytest_sessionstart(session):
         runtime_url,
         required=postgres_required,
     )
-    if postgres_required and os.environ.get("DATABASE_URL") != owner_url:
+    if postgres_required and os.environ.get("DATABASE_URL") not in {
+        owner_url,
+        runtime_url,
+    }:
         raise RuntimeError(
-            "No gate CI, DATABASE_URL deve apontar exatamente para o PostgreSQL efêmero owner."
+            "No gate CI, DATABASE_URL deve apontar exatamente para o PostgreSQL efêmero owner ou runtime."
         )
 
     if os.environ.get("HI_REQUIRE_DOCKER_TESTS") == "1":

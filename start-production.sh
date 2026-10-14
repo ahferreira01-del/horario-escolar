@@ -3,12 +3,16 @@ set -Eeuo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_DIR="$ROOT_DIR/backend"
-FRONTEND_STANDALONE="$ROOT_DIR/frontend/.next-production/standalone/horario-escolar/frontend"
+STANDALONE_ROOT="$ROOT_DIR/frontend/.next-production/standalone"
 API_PORT="${API_PORT:-8000}"
 export API_PORT
 
-if [[ ! -f "$FRONTEND_STANDALONE/server.js" ]]; then
-  echo "Production Next standalone server is missing at $FRONTEND_STANDALONE/server.js; run build-production.sh first." >&2
+if [[ -f "$STANDALONE_ROOT/horario-escolar/frontend/server.js" ]]; then
+  FRONTEND_STANDALONE="$STANDALONE_ROOT/horario-escolar/frontend"
+elif [[ -f "$STANDALONE_ROOT/server.js" ]]; then
+  FRONTEND_STANDALONE="$STANDALONE_ROOT"
+else
+  echo "Production Next standalone server is missing in $STANDALONE_ROOT; run build-production.sh first." >&2
   exit 1
 fi
 if [[ -z "${SESSION_SECRET:-}" ]]; then
@@ -60,7 +64,7 @@ if [[ "$api_ready" != true ]]; then
 fi
 
 cd "$FRONTEND_STANDALONE"
-export HOSTNAME=0.0.0.0
+export HOSTNAME="${HI_BIND_HOST:-0.0.0.0}"
 export PORT="${PORT:?PORT must be provided by the production service.}"
 export API_BACKEND_URL="http://127.0.0.1:${API_PORT}"
 node server.js

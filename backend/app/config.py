@@ -4,14 +4,7 @@ from urllib.parse import urlsplit
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import make_url
-
-
-def normalize_postgres_url(url: str) -> str:
-    if url.startswith("postgres://"):
-        return "postgresql+psycopg://" + url.removeprefix("postgres://")
-    if url.startswith("postgresql://"):
-        return "postgresql+psycopg://" + url.removeprefix("postgresql://")
-    return url
+from .database_urls import normalize_postgres_url
 
 
 class Settings(BaseSettings):

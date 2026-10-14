@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone
 from sqlalchemy import String, Boolean, ForeignKey, DateTime, Integer, JSON, UniqueConstraint, Index, ForeignKeyConstraint, CheckConstraint
 from sqlalchemy.orm import Mapped, mapped_column
-from .database import Base
+from .db_base import Base
 
 
 def uid():
