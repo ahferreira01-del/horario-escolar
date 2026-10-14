@@ -75,6 +75,15 @@ docker compose exec api python -m app.cli bootstrap-platform \
 
 Previsto: interface `http://localhost:3000`, API `http://localhost:8000`. A conta `horario_owner` executa as migrações; `horario_runtime` opera a API sujeita a RLS. **Não reaproveitar volume de Fase 4A/4B sem backup e ensaio de migração**. `POSTGRES_USER` não altera automaticamente o usuário dono de um volume existente. Nunca apagar um volume existente para resolver falhas de migração.
 
+### Neon de produção
+
+O banco externo de produção usa papéis separados: `horario_migrator` é dono do esquema `public` e só deve ser usado para Alembic; `horario_runtime` é usado pela API e não deve receber privilégios administrativos, associação a outros papéis ou `BYPASSRLS`. Guarde as URLs PostgreSQL desses papéis em Replit Secrets separados. URLs padrão do Neon (`postgresql://` ou `postgres://`) são adaptadas automaticamente para Psycopg 3:
+
+- `HI_RUNTIME_DATABASE_URL` — conexão da aplicação, com o papel `horario_runtime`.
+- `HI_MIGRATION_DATABASE_URL` — conexão usada somente ao executar Alembic, com o papel `horario_migrator`.
+
+A API usa `HI_RUNTIME_DATABASE_URL` somente com `ENVIRONMENT=production`; no desenvolvimento, usa `DATABASE_URL` (ou SQLite local), para que secrets de produção não redirecionem a prévia local ao banco real. Para uma migração de produção, defina `ENVIRONMENT=production` e forneça `HI_MIGRATION_DATABASE_URL` pelo gerenciador de Secrets. O Alembic ignora essa URL em desenvolvimento e falha de forma explícita se ela faltar em produção. Após `alembic upgrade head`, inicie a API com `HI_RUNTIME_DATABASE_URL`; a verificação de inicialização exige PostgreSQL, migração `0003`, RLS forçado nas tabelas isoladas e uma role sem privilégios ou associações administrativas.
+
 Para testes sem Docker:
 
 ```bash

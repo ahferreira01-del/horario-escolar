@@ -5,15 +5,40 @@ Executar SOMENTE contra Next.js + FastAPI + PostgreSQL/RLS efêmeros do CI.
 Parte do fixture escolar real da Fase 4J e exercita a UI de ponta a ponta;
 requer também os testes críticos independentes de backend.
 """
+import json
 import os
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import urljoin
 
 from playwright.sync_api import expect
 from smoke_browser_school_fase4j import BASE, main as school_flow
+from phase4x2d_test_support import assert_local_candidate_url, invitation_url
 
 
 def _url(path):
     return urljoin(BASE.rstrip("/") + "/", path.lstrip("/"))
+
+
+def _browser_fetch(page, url, method="GET", payload=None, headers=None, binary=False):
+    return page.evaluate(
+        """async ({url, method, payload, headers, binary}) => {
+          const options = {method, credentials: "include", headers: headers || {}};
+          if (payload !== null) {
+            options.headers = {...options.headers, "Content-Type": "application/json"};
+            options.body = JSON.stringify(payload);
+          }
+          const response = await fetch(url, options);
+          if (binary) {
+            const bytes = new Uint8Array(await response.arrayBuffer());
+            return {status: response.status,
+                    content_type: response.headers.get("content-type") || "",
+                    size: bytes.length, signature: Array.from(bytes.slice(0, 20))};
+          }
+          return {status: response.status, body: await response.text(),
+                  content_type: response.headers.get("content-type") || ""};
+        }""",
+        {"url": url, "method": method, "payload": payload,
+         "headers": headers or {}, "binary": binary},
+    )
 
 
 def _school_publish_flow(director_page, info):
@@ -27,8 +52,7 @@ def _school_publish_flow(director_page, info):
     form.locator("select").nth(1).select_option(label=info["school"])
     form.get_by_role("button", name="Enviar convite").click()
     expect(director_page.get_by_text("Convite criado.")).to_be_visible()
-    invitation = director_page.locator(".code-link a").get_attribute("href")
-    assert invitation and urlsplit(invitation).hostname in ("localhost", "127.0.0.1")
+    invitation = invitation_url(director_page, coordinator_email, BASE)
 
     # Sessões independentes: aceitar o convite não substitui o cookie do diretor.
     coordinator_context = director_page.context.browser.new_context(
@@ -62,24 +86,29 @@ def _school_publish_flow(director_page, info):
             "button", name="Pré-validar publicação")).to_have_count(0)
 
         # Autorizações do backend também são verificadas, com CSRF real do usuário.
-        me_response = coordinator_context.request.get(_url("/api/auth/me"))
-        assert me_response.status == 200
-        me = me_response.json()
+        me_response = _browser_fetch(coordinator, _url("/api/auth/me"))
+        assert me_response["status"] == 200, me_response["body"][:300]
+        me = json.loads(me_response["body"])
         tenant_id = me["memberships"][0]["tenant_id"]
         csrf = me["csrf"]
-        school_response = coordinator_context.request.get(_url(
-            f"/api/tenants/{tenant_id}/schools"))
-        assert school_response.status == 200
-        school_id = next(s["id"] for s in school_response.json() if s["name"] == info["school"])
+        school_response = _browser_fetch(
+            coordinator, _url(f"/api/tenants/{tenant_id}/schools"))
+        assert school_response["status"] == 200, school_response["body"][:300]
+        school_id = next(
+            s["id"] for s in json.loads(school_response["body"])
+            if s["name"] == info["school"]
+        )
         pub_base = f"/api/tenants/{tenant_id}/publications"
-        unauthorized = coordinator_context.request.post(_url(pub_base + "/publish"),
-            data={"valid_from":"2028-02-07", "valid_to":"2028-02-11",
-                  "parts":[{"school_id":school_id,"proposal_id":"invalid",
-                            "class_ids":["invalid"]}]},
-            headers={"X-CSRF-Token":csrf})
-        assert unauthorized.status == 403, (
+        unauthorized = _browser_fetch(
+            coordinator, _url(pub_base + "/publish"), method="POST",
+            payload={"valid_from":"2028-02-07", "valid_to":"2028-02-11",
+                     "parts":[{"school_id":school_id,"proposal_id":"invalid",
+                               "class_ids":["invalid"]}]},
+            headers={"X-CSRF-Token":csrf},
+        )
+        assert unauthorized["status"] == 403, (
             "Coordenador sem grades.publish conseguiu tentar publicação: "
-            + str(unauthorized.status) + " " + unauthorized.text()[:300])
+            + str(unauthorized["status"]) + " " + unauthorized["body"][:300])
 
         # Diretor é outra identidade: ele recebe e aprova a proposta.
         director_page.get_by_role("button", name="Planejamento e grades").click()
@@ -116,12 +145,12 @@ def _school_publish_flow(director_page, info):
         for link_name, content_type, signature in exports:
             href = published_row.get_by_role("link", name=link_name).get_attribute("href")
             assert href and "/export." in href
-            response = director_page.context.request.get(_url(href))
-            assert response.status == 200, (link_name, response.status, response.text()[:150])
-            assert content_type in response.headers.get("content-type", ""), (link_name,response.headers)
-            body = response.body()
-            assert body.startswith(signature), (link_name,body[:20])
-            assert len(body) > 150, (link_name,len(body))
+            response = _browser_fetch(director_page, _url(href), binary=True)
+            assert response["status"] == 200, (link_name, response)
+            assert content_type in response["content_type"], (link_name, response["content_type"])
+            body_start = bytes(response["signature"])
+            assert body_start.startswith(signature), (link_name, body_start)
+            assert response["size"] > 150, (link_name, response["size"])
 
         # Repetir publicação da mesma turma/vigência não pode ser aceito.
         official.get_by_role("button", name="Pré-validar publicação").click()
@@ -134,6 +163,5 @@ def _school_publish_flow(director_page, info):
 
 
 if __name__ == "__main__":
-    if urlsplit(BASE).hostname not in ("127.0.0.1", "localhost"):
-        raise RuntimeError("O ensaio oficial exige ambiente local descartável.")
+    assert_local_candidate_url(BASE)
     school_flow(after_preview=_school_publish_flow)

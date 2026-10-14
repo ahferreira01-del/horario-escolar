@@ -55,71 +55,72 @@ def validate_config(values: dict[str, str]) -> list[str]:
     except ValueError:
         pass
 
-    for key in ("HI_POSTGRES_OWNER_PASSWORD","HI_POSTGRES_RUNTIME_PASSWORD","HI_SESSION_SECRET","HI_REDIS_PASSWORD"):
-        val=values.get(key,"")
-        if val and len(val)<40:
+    for key in ("HI_POSTGRES_OWNER_PASSWORD", "HI_POSTGRES_RUNTIME_PASSWORD",
+                "HI_SESSION_SECRET", "HI_REDIS_PASSWORD"):
+        val = values.get(key, "")
+        if val and len(val) < 40:
             errors.append(f"{key}: mínimo 40 caracteres")
-        if val and not re.fullmatch(r"[A-Za-z0-9_-]+",val):
+        if val and not re.fullmatch(r"[A-Za-z0-9_-]+", val):
             errors.append(f"{key}: neste perfil usar somente [A-Za-z0-9_-] (ou adaptar URL encoding)")
     credentials = [values.get(key) for key in (
         "HI_POSTGRES_OWNER_PASSWORD", "HI_POSTGRES_RUNTIME_PASSWORD",
         "HI_REDIS_PASSWORD", "HI_SESSION_SECRET")]
     if any(v and credentials.count(v) > 1 for v in credentials):
         errors.append("Senhas e segredo da sessão devem ser diferentes")
-    for field,user,password in [
-        ("HI_DB_OWNER_URL","horario_owner","HI_POSTGRES_OWNER_PASSWORD"),
-        ("HI_DB_RUNTIME_URL","horario_runtime","HI_POSTGRES_RUNTIME_PASSWORD"),
+    for field, user, password in [
+        ("HI_DB_OWNER_URL", "horario_owner", "HI_POSTGRES_OWNER_PASSWORD"),
+        ("HI_DB_RUNTIME_URL", "horario_runtime", "HI_POSTGRES_RUNTIME_PASSWORD"),
     ]:
         try:
-            url=urlsplit(values.get(field,""))
-            if (url.scheme!="postgresql+psycopg" or url.hostname!="db"
-                    or url.port!=5432 or url.username!=user
-                    or url.password!=values.get(password)
-                    or url.path!="/horario"):
+            url = urlsplit(values.get(field, ""))
+            if (url.scheme != "postgresql+psycopg" or url.hostname != "db"
+                    or url.port != 5432 or url.username != user
+                    or url.password != values.get(password)
+                    or url.path != "/horario"):
                 errors.append(f"{field}: credenciais/esquema/host inconsistentes")
-        except (ValueError,TypeError):
+        except (ValueError, TypeError):
             errors.append(f"{field}: formato inválido")
     try:
-        redis_url=urlsplit(values.get("HI_AUTH_REDIS_URL", ""))
-        if (redis_url.scheme!="redis" or redis_url.hostname!="redis"
-                or redis_url.port!=6379 or redis_url.username not in (None, "")
-                or redis_url.password!=values.get("HI_REDIS_PASSWORD")
-                or redis_url.path!="/0"):
+        redis_url = urlsplit(values.get("HI_AUTH_REDIS_URL", ""))
+        if (redis_url.scheme != "redis" or redis_url.hostname != "redis"
+                or redis_url.port != 6379 or redis_url.username not in (None, "")
+                or redis_url.password != values.get("HI_REDIS_PASSWORD")
+                or redis_url.path != "/0"):
             errors.append("HI_AUTH_REDIS_URL: senha, host ou porta incompatíveis")
     except (ValueError, TypeError):
         errors.append("HI_AUTH_REDIS_URL: formato inválido")
     try:
-        port=int(values.get("HI_SMTP_PORT","587"))
-        if not 1<=port<=65535:
+        port = int(values.get("HI_SMTP_PORT", "587"))
+        if not 1 <= port <= 65535:
             errors.append("HI_SMTP_PORT: porta inválida")
     except ValueError:
         errors.append("HI_SMTP_PORT: porta inválida")
     if values.get("HI_SMTP_USER") and not values.get("HI_SMTP_PASSWORD"):
         errors.append("HI_SMTP_PASSWORD: exigida com HI_SMTP_USER")
-    if "@" not in values.get("HI_SMTP_FROM",""):
+    if "@" not in values.get("HI_SMTP_FROM", ""):
         errors.append("HI_SMTP_FROM: remetente inválido")
     return errors
 
 
 def main(argv=None):
-    parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--env-file",type=Path,required=True)
-    args=parser.parse_args(argv)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--env-file", type=Path, required=True)
+    args = parser.parse_args(argv)
     if not args.env_file.is_file():
         parser.error("Arquivo de configuração não encontrado (não use exemplo).")
     try:
-        config=load_simple_env(args.env_file)
-        errors=validate_config(config)
-    except (OSError,ValueError) as exc:
-        print("PREFLIGHT_BLOCKED: "+str(exc),file=sys.stderr)
+        config = load_simple_env(args.env_file)
+        errors = validate_config(config)
+    except (OSError, ValueError) as exc:
+        print("PREFLIGHT_BLOCKED: " + str(exc), file=sys.stderr)
         return 1
     if errors:
-        for e in errors:
-            print("PREFLIGHT_BLOCKED: "+e,file=sys.stderr)
+        for error in errors:
+            print("PREFLIGHT_BLOCKED: " + error, file=sys.stderr)
         return 1
     print("PREFLIGHT_CONFIGURATION_PASS (não valida DNS, TLS, DB, SMTP nem gates 4K/LGPD)")
     return 0
 
 
-if __name__=="__main__":
+if __name__ == "__main__":
     raise SystemExit(main())

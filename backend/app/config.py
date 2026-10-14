@@ -1,8 +1,17 @@
 """Configuração fail-closed do backend; implantação pública exige HTTPS e RLS."""
+import os
 from urllib.parse import urlsplit
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import make_url
+
+
+def normalize_postgres_url(url: str) -> str:
+    if url.startswith("postgres://"):
+        return "postgresql+psycopg://" + url.removeprefix("postgres://")
+    if url.startswith("postgresql://"):
+        return "postgresql+psycopg://" + url.removeprefix("postgresql://")
+    return url
 
 
 class Settings(BaseSettings):
@@ -63,5 +72,15 @@ def validate_production_configuration(cfg: Settings) -> None:
         raise RuntimeError("SMTP deve estar configurado para convites em produção.")
 
 
-settings = Settings()
+if os.environ.get("ENVIRONMENT", "development").strip().lower() == "production":
+    # Replit keeps the least-privilege application connection separate from
+    # the migration credential. Never fall back to a generic DATABASE_URL in
+    # production, since it may identify an owner or migration account.
+    runtime_database_url = os.environ.get("HI_RUNTIME_DATABASE_URL", "").strip()
+    if not runtime_database_url:
+        raise RuntimeError("HI_RUNTIME_DATABASE_URL is required in production")
+    settings = Settings(database_url=normalize_postgres_url(runtime_database_url))
+else:
+    settings = Settings()
+
 validate_production_configuration(settings)

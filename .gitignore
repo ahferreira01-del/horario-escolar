@@ -5,15 +5,8 @@
 *.sqlite3
 node_modules/
 .next/
+.next-production/
 __pycache__/
 .pytest_cache/
 *.pyc
 .DS_Store
-
-# Operação/producao: segredos nunca devem ser enviados ao Git
-ops/*.env
-ops/*.env.*
-!ops/*.env.example
-*.backup
-*.dump
-*.sql.gz

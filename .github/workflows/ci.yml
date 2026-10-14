@@ -2,6 +2,8 @@ name: Horário Inteligente — testes e homologação reproduzível
 on:
   push:
   pull_request:
+permissions:
+  contents: read
 jobs:
   backend_postgres:
     runs-on: ubuntu-latest
@@ -31,7 +33,7 @@ jobs:
           with psycopg.connect('postgresql://postgres:test_owner_password@localhost:5432/horario',autocommit=True) as c:
               c.execute("CREATE ROLE horario_runtime WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS NOINHERIT PASSWORD 'test_runtime_password'")
           PY
-      - name: Migrar banco real + RLS
+      - name: Migrar PostgreSQL efêmero + RLS
         working-directory: backend
         env:
           DATABASE_URL: postgresql+psycopg://postgres:test_owner_password@localhost:5432/horario
@@ -110,6 +112,7 @@ jobs:
           COOKIE_SECURE: 'false'
           PUBLIC_APP_URL: http://127.0.0.1:3000
           API_BACKEND_URL: http://127.0.0.1:8000
+          HI_RELEASE_SHA: ${{ github.sha }}
         run: |
           set -e
           (cd backend && DATABASE_URL=postgresql+psycopg://postgres:test_owner_password@127.0.0.1:5432/horario python -m app.cli bootstrap-platform --email admin-e2e@example.com --name 'Admin CI' --password 'Senha-Teste-Homologacao-123!')
@@ -121,6 +124,22 @@ jobs:
           done
           cat /tmp/horario-api.log /tmp/horario-web.log
           exit 1
+      - name: Verificar identidade exata do build executado
+        env:
+          EXPECTED_RELEASE_SHA: ${{ github.sha }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from urllib.request import urlopen
+
+          with urlopen("http://127.0.0.1:8000/api/release", timeout=5) as response:
+              payload = json.load(response)
+          expected = os.environ["EXPECTED_RELEASE_SHA"]
+          assert payload.get("release_identified") is True, payload
+          assert payload.get("release_sha") == expected, payload
+          print(f"CI_RELEASE_SHA_VERIFIED={expected}")
+          PY
       - name: Smoke Chromium integrado com PostgreSQL e RLS
         env:
           HI_BROWSER_URL: http://127.0.0.1:3000
@@ -133,6 +152,12 @@ jobs:
           HI_BROWSER_ADMIN_EMAIL: admin-e2e@example.com
           HI_BROWSER_ADMIN_PASSWORD: Senha-Teste-Homologacao-123!
         run: python scripts/smoke_browser_school_fase4j.py
+      - name: E2E 4K — publicação apenas no PostgreSQL descartável
+        env:
+          HI_BROWSER_URL: http://127.0.0.1:3000
+          HI_BROWSER_ADMIN_EMAIL: admin-e2e@example.com
+          HI_BROWSER_ADMIN_PASSWORD: Senha-Teste-Homologacao-123!
+        run: python scripts/smoke_browser_publication_fase4k.py
       - name: Coletar logs em caso de falha
         if: failure()
         run: |
