@@ -60,7 +60,7 @@ Commit `37d0d78…`, filho direto do commit de projeção `944e62073ba498a5b49bd
 - `scripts/verify_ci_redis_fase4w.py` (novo)
   - Valida no JUnit a execução sem skips dos dois testes Redis live e do teste Redis Compose.
 
-Não alterei lógica de runtime da aplicação, arquivos de dependências, Secrets, Neon, banco, deployment, workflow Replit, branch principal ou workflow remoto.
+Não alterei lógica de runtime da aplicação, arquivos de dependências, Secrets, Neon, banco, deployment, workflows Replit ou workflow remoto, e não fiz commit na branch principal. Atualizei somente a nota técnica `.agents/memory/git-worktree-safety.md` no workspace para registrar a direção correta do backlink de worktree; essa nota não faz parte do commit da projeção nem do PR.
 
 ## Validações e resultados
 
