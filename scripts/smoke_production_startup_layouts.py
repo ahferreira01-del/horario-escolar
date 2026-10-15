@@ -123,13 +123,15 @@ def api_stub_files(temp_root: Path) -> tuple[Path, Path]:
 
             class Handler(BaseHTTPRequestHandler):
                 def do_GET(self):
-                    if self.path != "/api/health":
+                    if self.path not in {"/api/health", "/api/ready"}:
                         self.send_error(404)
                         return
-                    body = json.dumps({
-                        "status": "ok",
-                        "service": "horario-inteligente-api",
-                    }).encode()
+                    body = json.dumps(
+                        {
+                            "status": "ready" if self.path == "/api/ready" else "ok",
+                            "service": "horario-inteligente-api",
+                        }
+                    ).encode()
                     self.send_response(200)
                     self.send_header("Content-Type", "application/json")
                     self.send_header("Content-Length", str(len(body)))
@@ -260,10 +262,15 @@ def run_layout(layout: str, work_root: Path) -> None:
         health_status, health_body = wait_for_http(
             f"http://127.0.0.1:{web_port}/api/health", process
         )
+        ready_status, ready_body = wait_for_http(
+            f"http://127.0.0.1:{web_port}/api/ready", process
+        )
         if root_status != 200 or b"Hor\xc3\xa1rio Inteligente" not in root_body:
             raise AssertionError(f"{layout} frontend root failed ({root_status}).")
         if health_status != 200 or json.loads(health_body)["service"] != "horario-inteligente-api":
             raise AssertionError(f"{layout} API health route failed ({health_status}).")
+        if ready_status != 200 or json.loads(ready_body)["status"] != "ready":
+            raise AssertionError(f"{layout} API readiness route failed ({ready_status}).")
     finally:
         stop_process_group(process)
         if process.stdout:
