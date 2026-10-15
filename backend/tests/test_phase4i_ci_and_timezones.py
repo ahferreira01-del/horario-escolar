@@ -40,9 +40,28 @@ def test_ci_browser_requires_postgres_rls_and_runtime_role():
     assert integration_steps[0]['env']['DATABASE_URL'].startswith(
         'postgresql+psycopg://horario_runtime:'
     )
-    assert 'pnpm run lint:types' in all_commands
-    assert 'pnpm run build' in all_commands
-    assert 'node .next-production/standalone/server.js' in all_commands
+    # Validar o comando de build mesmo quando executado via script portátil.
+    build_steps = [step for step in steps if step.get('name') == 'Build Next.js e checagem TypeScript']
+    assert len(build_steps) == 1
+    assert build_steps[0].get('working-directory') == 'frontend'
+    build_commands = [line.strip() for line in build_steps[0]['run'].splitlines()]
+    assert 'pnpm run lint:types' in build_commands
+    assert 'bash ../build-production.sh' in build_commands
+    assert 'python ../scripts/verify_next_standalone.py .next-production/standalone' in build_commands
+    production_build = (ROOT / 'build-production.sh').read_text(encoding='utf-8')
+    assert any(
+        re.search(r'\bpnpm run build\b', line)
+        for line in production_build.splitlines()
+        if line.strip() and not line.lstrip().startswith('#')
+    )
+
+    # Validar a inicialização dinâmica para os layouts GitHub e Replit.
+    runtime_commands = runtime_steps[0]['run']
+    assert 'standalone_server=.next-production/standalone/horario-escolar/frontend/server.js' in runtime_commands
+    assert 'standalone_server=.next-production/standalone/frontend/server.js' in runtime_commands
+    assert 'standalone_server=.next-production/standalone/server.js' in runtime_commands
+    assert 'node "$standalone_server"' in runtime_commands
+    assert re.search(r'(?m)^\s*exit 1\s*$', runtime_commands)
     assert 'scripts/smoke_browser_fase4h.py' in all_commands
     assert 'playwright install --with-deps chromium' in all_commands
     e2e_order = [
