@@ -15,10 +15,20 @@ import time
 import urllib.error
 import urllib.request
 
+from verify_next_standalone import verify_standalone
+
 
 ROOT = Path(__file__).resolve().parents[1]
 FRONTEND = ROOT / "frontend"
 DIST = ".next-production"
+
+
+def hardlink_or_copy(source: str, destination: str) -> str:
+    try:
+        os.link(source, destination)
+        return destination
+    except OSError:
+        return shutil.copy2(source, destination)
 
 
 def unused_port() -> int:
@@ -49,11 +59,30 @@ def copy_project(workspace: Path, layout: str) -> Path:
     installed_modules = FRONTEND / "node_modules"
     if not installed_modules.is_dir():
         raise RuntimeError("Frontend dependencies are not installed in this isolated checkout.")
-    (project_root / "frontend" / "node_modules").symlink_to(
-        installed_modules, target_is_directory=True
+    shutil.copytree(
+        ROOT / "node_modules",
+        workspace / "node_modules",
+        symlinks=True,
+        copy_function=hardlink_or_copy,
+    )
+    if project_root != workspace:
+        (project_root / "node_modules").symlink_to(
+            os.path.relpath(workspace / "node_modules", project_root),
+            target_is_directory=True,
+        )
+    shutil.copytree(
+        installed_modules,
+        project_root / "frontend" / "node_modules",
+        symlinks=True,
     )
     for script in ("build-production.sh", "start-production.sh"):
         shutil.copy2(ROOT / script, project_root / script)
+    scripts_dir = project_root / "scripts"
+    scripts_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(
+        ROOT / "scripts" / "verify_next_standalone.py",
+        scripts_dir / "verify_next_standalone.py",
+    )
     shutil.copy2(ROOT / ".npmrc", project_root / ".npmrc")
     (workspace / "pnpm-workspace.yaml").write_text(
         f"packages:\n  - {package_glob}\n", encoding="utf-8"
@@ -170,13 +199,8 @@ def run_layout(layout: str, work_root: Path) -> None:
         )
 
     standalone_root = project_root / "frontend" / DIST / "standalone"
-    standalone_app = (
-        standalone_root / "horario-escolar" / "frontend"
-        if (standalone_root / "horario-escolar" / "frontend" / "server.js").is_file()
-        else standalone_root
-    )
-    if not (standalone_app / "server.js").is_file():
-        raise AssertionError(f"{layout} standalone server not found below {standalone_root}")
+    standalone_server = verify_standalone(standalone_root)
+    standalone_app = standalone_server.parent
 
     manifest_candidates = [
         project_root / "frontend" / DIST / "routes-manifest.json",
@@ -195,7 +219,17 @@ def run_layout(layout: str, work_root: Path) -> None:
     ):
         raise AssertionError(f"{layout} API rewrite does not target the local stub.")
 
-    shim_dir, api_server = api_stub_files(work_root / f"{layout}-runtime")
+    runtime_root = work_root / f"{layout}-runtime"
+    runtime_project = runtime_root / "project"
+    runtime_frontend_dist = runtime_project / "frontend" / DIST
+    runtime_standalone = runtime_frontend_dist / "standalone"
+    runtime_standalone.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(standalone_root, runtime_standalone, symlinks=True)
+    (runtime_project / "backend").mkdir(parents=True)
+    shutil.copy2(ROOT / "start-production.sh", runtime_project / "start-production.sh")
+    verify_standalone(runtime_standalone)
+
+    shim_dir, api_server = api_stub_files(runtime_root)
     web_port = unused_port()
     runtime_env = {
         **os.environ,
@@ -210,10 +244,11 @@ def run_layout(layout: str, work_root: Path) -> None:
         "HI_RUNTIME_DATABASE_URL": "postgresql://startup-smoke.invalid/horario",
         "PUBLIC_APP_URL": "http://127.0.0.1",
         "NODE_ENV": "production",
+        "NODE_PATH": "",
     }
     process = subprocess.Popen(
-        ["bash", str(project_root / "start-production.sh")],
-        cwd=project_root,
+        ["bash", str(runtime_project / "start-production.sh")],
+        cwd=runtime_project,
         env=runtime_env,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
@@ -235,8 +270,8 @@ def run_layout(layout: str, work_root: Path) -> None:
             process.stdout.close()
 
     unavailable = subprocess.run(
-        ["bash", str(project_root / "start-production.sh")],
-        cwd=project_root,
+        ["bash", str(runtime_project / "start-production.sh")],
+        cwd=runtime_project,
         env={**runtime_env, "HI_TEST_API_MODE": "unavailable", "PORT": str(unused_port())},
         text=True,
         capture_output=True,

@@ -9,6 +9,8 @@ export API_PORT
 
 if [[ -f "$STANDALONE_ROOT/horario-escolar/frontend/server.js" ]]; then
   FRONTEND_STANDALONE="$STANDALONE_ROOT/horario-escolar/frontend"
+elif [[ -f "$STANDALONE_ROOT/frontend/server.js" ]]; then
+  FRONTEND_STANDALONE="$STANDALONE_ROOT/frontend"
 elif [[ -f "$STANDALONE_ROOT/server.js" ]]; then
   FRONTEND_STANDALONE="$STANDALONE_ROOT"
 else

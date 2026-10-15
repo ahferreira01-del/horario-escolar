@@ -25,6 +25,8 @@ HI_NEXT_DIST_DIR="$PRODUCTION_DIST_DIR" API_BACKEND_URL="http://127.0.0.1:${API_
 # checkout is flat; Replit traces from its workspace root and nests the app.
 if [[ -f "$STANDALONE_ROOT/horario-escolar/frontend/server.js" ]]; then
   STANDALONE_APP_DIR="$STANDALONE_ROOT/horario-escolar/frontend"
+elif [[ -f "$STANDALONE_ROOT/frontend/server.js" ]]; then
+  STANDALONE_APP_DIR="$STANDALONE_ROOT/frontend"
 elif [[ -f "$STANDALONE_ROOT/server.js" ]]; then
   STANDALONE_APP_DIR="$STANDALONE_ROOT"
 else
@@ -37,3 +39,5 @@ if [[ -d public ]]; then
   rm -rf "$STANDALONE_APP_DIR/public"
   cp -R public "$STANDALONE_APP_DIR/public"
 fi
+
+python3 "$ROOT_DIR/scripts/verify_next_standalone.py" "$ROOT_DIR/frontend/$PRODUCTION_DIST_DIR/standalone"

@@ -136,10 +136,8 @@ jobs:
           HI_NEXT_DIST_DIR: .next-production
         run: |
           pnpm run lint:types
-          pnpm run build
-          mkdir -p .next-production/standalone/.next
-          cp -a .next-production/static .next-production/standalone/.next/static
-          if [ -d public ]; then cp -a public .next-production/standalone/public; fi
+          bash ../build-production.sh
+          python ../scripts/verify_next_standalone.py .next-production/standalone
       - name: Criar administrador fictício via owner e iniciar API via runtime RLS
         env:
           DATABASE_URL: postgresql+psycopg://horario_runtime:test_runtime_password@127.0.0.1:5432/horario
@@ -150,10 +148,20 @@ jobs:
           API_BACKEND_URL: http://127.0.0.1:8000
           HI_RELEASE_SHA: ${{ github.sha }}
         run: |
-          set -e
+          set -euo pipefail
           (cd backend && DATABASE_URL=postgresql+psycopg://postgres:test_owner_password@127.0.0.1:5432/horario python -m app.cli bootstrap-platform --email admin-e2e@example.com --name 'Admin CI' --password 'Senha-Teste-Homologacao-123!')
           (cd backend && nohup python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 >/tmp/horario-api.log 2>&1 &)
-          (cd frontend && PORT=3000 HOSTNAME=127.0.0.1 HI_NEXT_DIST_DIR=.next-production nohup node .next-production/standalone/server.js >/tmp/horario-web.log 2>&1 &)
+          if [ -f frontend/.next-production/standalone/horario-escolar/frontend/server.js ]; then
+            standalone_server=.next-production/standalone/horario-escolar/frontend/server.js
+          elif [ -f frontend/.next-production/standalone/frontend/server.js ]; then
+            standalone_server=.next-production/standalone/frontend/server.js
+          elif [ -f frontend/.next-production/standalone/server.js ]; then
+            standalone_server=.next-production/standalone/server.js
+          else
+            echo "Next standalone server was not found in the generated artifact." >&2
+            exit 1
+          fi
+          (cd frontend && PORT=3000 HOSTNAME=127.0.0.1 HI_NEXT_DIST_DIR=.next-production nohup node "$standalone_server" >/tmp/horario-web.log 2>&1 &)
           for i in $(seq 1 60); do
             if curl -sf http://127.0.0.1:8000/api/health >/dev/null && curl -sf http://127.0.0.1:3000/ >/dev/null; then exit 0; fi
             sleep 2
