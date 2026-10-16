@@ -12,6 +12,7 @@ from urllib.parse import urljoin
 from playwright.sync_api import expect
 from smoke_browser_school_fase4j import BASE, main as school_flow
 from phase4x2d_test_support import assert_local_candidate_url, invitation_url
+from smoke_browser_manual_provisioning import change_temporary_password
 
 
 def _url(path):
@@ -42,31 +43,52 @@ def _browser_fetch(page, url, method="GET", payload=None, headers=None, binary=F
 
 
 def _school_publish_flow(director_page, info):
-    # Administrador da organização convida coordenador da escola.
-    director_page.get_by_role("button", name="Convidar usuários").click()
-    form = director_page.locator("form.grid-2")
+    # Criar segunda identidade por cadastro manual ou convite, conforme o modo da API.
     coordinator_email = "coordenador-4k-" + info["organization"].split()[-1] + "@example.com"
     coordinator_password = "SenhaCI-Coordenador-12345!"
-    form.locator('input[type="email"]').fill(coordinator_email)
-    form.locator("select").nth(0).select_option(label="Coordenador")
-    form.locator("select").nth(1).select_option(label=info["school"])
-    form.get_by_role("button", name="Enviar convite").click()
-    expect(director_page.get_by_text("Convite criado.")).to_be_visible()
-    invitation = invitation_url(director_page, coordinator_email, BASE)
+    if info.get("manual_provisioning"):
+        director_page.get_by_role("button", name="Usuários", exact=True).click()
+        director_page.get_by_test_id("user-name-input").fill("Coordenador Escolar CI")
+        director_page.get_by_test_id("user-email-input").fill(coordinator_email)
+        director_page.get_by_test_id("user-role-select").select_option(label="Coordenador")
+        director_page.get_by_test_id("user-school-select").select_option(label=info["school"])
+        director_page.get_by_test_id("create-user-submit").click()
+        credential_dialog = director_page.get_by_test_id("credential-dialog")
+        expect(credential_dialog).to_be_visible()
+        coordinator_initial_password = director_page.get_by_test_id("temporary-password-value").inner_text()
+        assert len(coordinator_initial_password) >= 20
+        director_page.get_by_test_id("credential-close").click()
+        expect(credential_dialog).to_have_count(0)
+    else:
+        director_page.get_by_role("button", name="Convidar usuários").click()
+        form = director_page.locator("form.grid-2")
+        form.locator('input[type="email"]').fill(coordinator_email)
+        form.locator("select").nth(0).select_option(label="Coordenador")
+        form.locator("select").nth(1).select_option(label=info["school"])
+        form.get_by_role("button", name="Enviar convite").click()
+        expect(director_page.get_by_text("Convite criado.")).to_be_visible()
+        invitation = invitation_url(director_page, coordinator_email, BASE)
 
-    # Sessões independentes: aceitar o convite não substitui o cookie do diretor.
+    # Sessões independentes: o coordenador não substitui o cookie do diretor.
     coordinator_context = director_page.context.browser.new_context(
         locale="pt-BR", viewport={"width": 1440, "height": 900})
     coordinator = coordinator_context.new_page()
     coordinator.set_default_timeout(18000)
     try:
-        coordinator.goto(invitation, wait_until="domcontentloaded")
-        expect(coordinator.get_by_role("heading", name="Ativar seu acesso")).to_be_visible()
-        coordinator.locator("form input").nth(0).fill("Coordenador Escolar CI")
-        coordinator.locator("form input").nth(1).fill(coordinator_password)
-        coordinator.get_by_role("button", name="Aceitar convite").click()
-        expect(coordinator.get_by_text("Acesso ativado com sucesso.")).to_be_visible()
-        coordinator.get_by_role("link", name="Ir para o painel").click()
+        if info.get("manual_provisioning"):
+            change_temporary_password(
+                coordinator,
+                (coordinator_email, coordinator_initial_password),
+                coordinator_password,
+            )
+        else:
+            coordinator.goto(invitation, wait_until="domcontentloaded")
+            expect(coordinator.get_by_role("heading", name="Ativar seu acesso")).to_be_visible()
+            coordinator.locator("form input").nth(0).fill("Coordenador Escolar CI")
+            coordinator.locator("form input").nth(1).fill(coordinator_password)
+            coordinator.get_by_role("button", name="Aceitar convite").click()
+            expect(coordinator.get_by_text("Acesso ativado com sucesso.")).to_be_visible()
+            coordinator.get_by_role("link", name="Ir para o painel").click()
         expect(coordinator.get_by_role("button", name="Planejamento e grades")).to_be_visible()
         coordinator.get_by_role("button", name="Planejamento e grades").click()
         proposals = coordinator.locator('section[aria-label="Propostas para revisão"]')
