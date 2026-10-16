@@ -31,6 +31,15 @@ if [[ "$exists" != "0" ]]; then
   echo "BLOCKED: drill database already exists, refusing to overwrite." >&2
   exit 1
 fi
+roles="$("${compose[@]}" exec -T db sh -ec '
+  export PGPASSWORD="$POSTGRES_PASSWORD"
+  psql -U "$POSTGRES_USER" -d postgres -Atc \
+    "SELECT count(*) FROM pg_roles WHERE rolname IN ('\''horario_owner'\'','\''horario_runtime'\'')"
+')"
+if [[ "$roles" != "2" ]]; then
+  echo "BLOCKED: owner/runtime roles must be provisioned on the isolated recovery host." >&2
+  exit 1
+fi
 "${compose[@]}" exec -T db sh -ec '
   export PGPASSWORD="$POSTGRES_PASSWORD"
   psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d postgres -c "CREATE DATABASE horario_restore_drill"
@@ -40,17 +49,23 @@ fi
 age -d -i "$HI_AGE_IDENTITY_FILE" "$HI_BACKUP_FILE" | \
  "${compose[@]}" exec -T db sh -ec '
   export PGPASSWORD="$POSTGRES_PASSWORD"
-  exec pg_restore --exit-on-error --no-owner --no-acl -U "$POSTGRES_USER" -d horario_restore_drill
+  exec pg_restore --exit-on-error --no-owner -U "$POSTGRES_USER" -d horario_restore_drill
  '
 
 verdict="$("${compose[@]}" exec -T db sh -ec '
   export PGPASSWORD="$POSTGRES_PASSWORD"
   psql -U "$POSTGRES_USER" -d horario_restore_drill -Atc "
   SELECT CASE WHEN
-    (SELECT version_num FROM alembic_version LIMIT 1) = '\''0003'\''
+    (SELECT version_num FROM alembic_version LIMIT 1) = '\''0005'\''
     AND (SELECT count(*) FROM pg_class
-          WHERE relname IN ('\''memberships'\'','\''grade_proposals'\'','\''published_grades'\'')
-            AND relrowsecurity AND relforcerowsecurity)=3
+          WHERE relname IN ('\''memberships'\'','\''grade_proposals'\'','\''published_grades'\'','\''auth_login_limits'\'')
+            AND relrowsecurity AND relforcerowsecurity)=4
+    AND has_table_privilege('\''horario_runtime'\'','\''public.memberships'\'','\''SELECT'\'')
+    AND has_table_privilege('\''horario_runtime'\'','\''public.memberships'\'','\''UPDATE'\'')
+    AND has_table_privilege('\''horario_runtime'\'','\''public.auth_login_limits'\'','\''DELETE'\'')
+    AND has_table_privilege('\''horario_runtime'\'','\''public.published_grades'\'','\''INSERT'\'')
+    AND NOT has_table_privilege('\''horario_runtime'\'','\''public.published_grades'\'','\''UPDATE'\'')
+    AND NOT has_table_privilege('\''horario_runtime'\'','\''public.published_grades'\'','\''DELETE'\'')
   THEN '\''RESTORE_DRILL_SCHEMA_PASS'\'' ELSE '\''RESTORE_DRILL_SCHEMA_FAIL'\'' END;"
 ')"
 if [[ "$verdict" != "RESTORE_DRILL_SCHEMA_PASS" ]]; then
@@ -62,5 +77,5 @@ fi
   export PGPASSWORD="$POSTGRES_PASSWORD"
   psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d postgres -c "DROP DATABASE horario_restore_drill WITH (FORCE)"
 ' >/dev/null
-echo "RESTORE_DRILL_SCHEMA_PASS: archive decrypted, restored, schema and FORCE RLS checked on isolated host."
-echo "This alone is not a full app/RPO/RTO certification; verify runtime isolation and critical user journeys."
+echo "RESTORE_DRILL_SCHEMA_PASS: archive decrypted; schema, FORCE RLS and effective runtime grants checked on isolated host."
+echo "Role definitions are cluster-global and were provisioned separately; this is not a full app/RPO/RTO certification."

@@ -13,9 +13,11 @@ from .database import get_db, bind_context
 from .models import (Tenant, User, School, Role, Membership, Invitation, Teacher,
                      TeacherSchool, Availability, AvailabilityRequest, AuditLog, utcnow)
 from .schemas import (Login, TenantCreate, SchoolCreate, InvitationCreate, InvitationAccept,
-                      TeacherCreate, AvailabilityReplace, AvailabilityRequestCreate, RoleCreate)
+                      TeacherCreate, AvailabilityReplace, AvailabilityRequestCreate, RoleCreate,
+                      UserProvisionCreate, UserMembershipUpdate, PasswordChange)
 from .security import (current_user, require_csrf, make_session, set_auth_cookie, verify_password,
-                       hash_password, dummy_password_hash, new_invitation_token, token_hash, ROLE_PERMISSIONS,
+                       hash_password, dummy_password_hash, new_invitation_token,
+                       new_temporary_password, token_hash, ROLE_PERMISSIONS,
                        KNOWN_PERMISSIONS, authorize, permitted, role_can_delegate)
 from .emailer import send_invitation
 from .login_throttle import check_login_attempt, clear_successful_login, check_auth_backend
@@ -100,6 +102,8 @@ def invite_record(db, tenant, email, role, school_id, actor, teacher_id=None):
 
 
 def deliver_invitation(email, url):
+    if settings.user_provisioning_mode.strip().lower() != "email":
+        raise HTTPException(409, "Convites por e-mail estão desativados; use o cadastro administrativo.")
     if settings.environment != "development" and (not settings.smtp_host or not settings.smtp_from):
         raise HTTPException(503, "Envio de convites indisponível: SMTP não configurado.")
     try:
@@ -153,13 +157,29 @@ def ready():
 def login(data: Login, response: Response, db: Session = Depends(get_db)):
     normalized_email = data.email.lower().strip()
     # Limite distribuído funciona ANTES de consultar usuário ou fazer Argon2.
-    check_login_attempt(normalized_email)
+    check_login_attempt(normalized_email, db)
     user = db.scalar(select(User).where(User.email == normalized_email))
     password_digest = user.password_hash if user and user.is_active else dummy_password_hash()
     password_ok = verify_password(data.password, password_digest)
+    if user and user.must_change_password:
+        expires_at = user.temporary_password_expires_at
+        if not expires_at:
+            password_ok = False
+        else:
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            if expires_at <= utcnow():
+                password_ok = False
+    if user and user.is_active and password_ok and not user.is_platform_admin:
+        bind_context(db, user.id)
+        has_active_membership = db.scalar(select(Membership.id).where(
+            Membership.user_id == user.id, Membership.is_active == True,
+        ).limit(1))
+        if not has_active_membership:
+            password_ok = False
     if not user or not user.is_active or not password_ok:
         raise HTTPException(401, "E-mail ou senha inválidos.")
-    clear_successful_login(normalized_email)
+    clear_successful_login(normalized_email, db)
     token, csrf = make_session(user)
     set_auth_cookie(response, token)
     return {"message": "Acesso autorizado.", "csrf": csrf}
@@ -181,7 +201,43 @@ def me(user: User = Depends(current_user), db: Session = Depends(get_db), reques
                                 "role_code": r.code, "role_name": r.name, "permissions": r.permissions})
     return {"id": user.id, "name": user.name, "email": user.email,
             "is_platform_admin": user.is_platform_admin, "memberships": memberships,
-            "csrf": request.state.session_claims["csrf"]}
+            "csrf": request.state.session_claims["csrf"],
+            "must_change_password": user.must_change_password,
+            "temporary_password_expires_at": (
+                user.temporary_password_expires_at.isoformat()
+                if user.temporary_password_expires_at else None
+            )}
+
+
+@app.post("/api/auth/change-password")
+def change_temporary_password(data: PasswordChange, request: Request, response: Response,
+                              user: User = Depends(current_user), db: Session = Depends(get_db)):
+    require_write(request)
+    if not user.must_change_password:
+        raise HTTPException(409, "Esta conta não precisa concluir a troca de senha inicial.")
+    if data.new_password != data.confirm_password:
+        raise HTTPException(422, "As senhas não coincidem.")
+    user.password_hash = hash_password(data.new_password)
+    user.must_change_password = False
+    user.temporary_password_expires_at = None
+    user.session_version += 1
+
+    # Registra a alteração sem incluir senha ou hash no evento.
+    bind_context(db, user.id)
+    active_membership = db.scalar(
+        select(Membership)
+        .where(Membership.user_id == user.id, Membership.is_active == True)
+        .order_by(Membership.tenant_id)
+        .limit(1)
+    )
+    if active_membership:
+        bind_context(db, user.id, active_membership.tenant_id)
+        logged(db, active_membership.tenant_id, user, "user.password_changed",
+               "user", user.id)
+    db.commit()
+    token, csrf = make_session(user)
+    set_auth_cookie(response, token)
+    return {"message": "Senha atualizada. A nova sessão foi protegida.", "csrf": csrf}
 
 
 @app.post("/api/auth/logout")
@@ -218,7 +274,11 @@ def accept_invitation(data: InvitationAccept, request: Request, response: Respon
         if cookie:
             try:
                 claims = jwt.decode(cookie, settings.session_secret, algorithms=["HS256"])
-                authenticated = claims.get("sub") == user.id and claims.get("type") == "session"
+                authenticated = (
+                    claims.get("sub") == user.id
+                    and claims.get("type") == "session"
+                    and claims.get("sv", 0) == user.session_version
+                )
             except Exception:
                 pass
         if not authenticated:
@@ -271,8 +331,6 @@ def create_tenant(data: TenantCreate, request: Request, user: User = Depends(cur
     require_write(request)
     if not user.is_platform_admin:
         raise HTTPException(403, "Somente administração da plataforma.")
-    if settings.environment != "development" and not settings.smtp_host:
-        raise HTTPException(503, "Configure SMTP antes de cadastrar organizações.")
     tenant = Tenant(name=data.name.strip(), status="active", max_schools=data.max_schools,
                     max_teachers=data.max_teachers, max_users=data.max_users)
     db.add(tenant)
@@ -283,13 +341,52 @@ def create_tenant(data: TenantCreate, request: Request, user: User = Depends(cur
         r = Role(tenant_id=tenant.id, code=code, name={"org_admin":"Administrador da organização", "school_admin":"Administrador escolar", "coordinator":"Coordenador", "teacher":"Professor", "viewer":"Consulta"}[code], permissions=permissions, is_system=True)
         db.add(r); roles[code] = r
     db.flush()
-    inv, token, url = invite_record(db, tenant, data.first_admin_email, roles["org_admin"], None, user)
-    sent = deliver_invitation(inv.email, url)
+    normalized_email = data.first_admin_email.lower().strip()
+    first_admin = {"email": normalized_email, "created_account": False,
+                   "temporary_password": None, "temporary_password_expires_at": None}
+    sent = None
+    url = None
+    if settings.user_provisioning_mode.strip().lower() == "email":
+        inv, token, url = invite_record(db, tenant, normalized_email, roles["org_admin"], None, user)
+        sent = deliver_invitation(inv.email, url)
+    else:
+        first_account = db.scalar(
+            select(User).where(User.email == normalized_email).with_for_update()
+        )
+        if first_account and not first_account.is_active:
+            raise HTTPException(409, "A conta do administrador está desativada.")
+        if first_account:
+            first_admin["email"] = first_account.email
+        else:
+            temporary_password = new_temporary_password()
+            expires_at = utcnow() + timedelta(hours=24)
+            first_account = User(
+                email=normalized_email,
+                name=data.first_admin_name.strip(),
+                password_hash=hash_password(temporary_password),
+                is_active=True,
+                must_change_password=True,
+                temporary_password_expires_at=expires_at,
+            )
+            db.add(first_account)
+            db.flush()
+            first_admin.update(
+                created_account=True,
+                temporary_password=temporary_password,
+                temporary_password_expires_at=expires_at.isoformat(),
+            )
+        db.add(Membership(
+            tenant_id=tenant.id, user_id=first_account.id,
+            role_id=roles["org_admin"].id, school_id=None, is_active=True,
+        ))
     logged(db, tenant.id, user, "tenant.created", "tenant", tenant.id, organization=data.name)
     db.commit()
-    result = {"id": tenant.id, "name": tenant.name, "admin_invitation_sent": sent}
+    result = {"id": tenant.id, "name": tenant.name, "first_admin": first_admin}
+    if settings.user_provisioning_mode.strip().lower() == "email":
+        result["admin_invitation_sent"] = sent
     if settings.environment == "development":
-        result["dev_invitation_url"] = url
+        if url:
+            result["dev_invitation_url"] = url
     return result
 
 
@@ -348,9 +445,230 @@ def create_role(tenant_id: str, data: RoleCreate, request: Request, user: User =
     return {"id": r.id, "code": r.code, "name": r.name, "permissions": r.permissions}
 
 
+@app.get("/api/tenants/{tenant_id}/users")
+def list_tenant_users(tenant_id: str, user: User = Depends(current_user),
+                      db: Session = Depends(get_db)):
+    authorize(db, user, tenant_id, "users.invite")
+    bind_context(db, user.id, tenant_id)
+    rows = db.execute(
+        select(Membership, User, Role, School)
+        .join(User, User.id == Membership.user_id)
+        .join(Role, Role.id == Membership.role_id)
+        .outerjoin(School, School.id == Membership.school_id)
+        .where(Membership.tenant_id == tenant_id)
+        .order_by(User.name, Role.name, School.name)
+    ).all()
+    result = []
+    for membership, account, role, school in rows:
+        if not permitted(db, user, tenant_id, "users.invite", membership.school_id):
+            continue
+        result.append({
+            "user_id": account.id,
+            "name": account.name,
+            "email": account.email,
+            "role_id": role.id,
+            "role_code": role.code,
+            "role_name": role.name,
+            "school_id": membership.school_id,
+            "school_name": school.name if school else None,
+            "membership_active": membership.is_active,
+            "account_active": account.is_active,
+            "must_change_password": account.must_change_password,
+            "temporary_password_expires_at": (
+                account.temporary_password_expires_at.isoformat()
+                if account.temporary_password_expires_at else None
+            ),
+        })
+    return result
+
+
+@app.post("/api/tenants/{tenant_id}/users", status_code=201)
+def provision_tenant_user(tenant_id: str, data: UserProvisionCreate, request: Request,
+                          user: User = Depends(current_user), db: Session = Depends(get_db)):
+    require_write(request)
+    if not data.school_id:
+        raise HTTPException(422, "Selecione uma unidade para este vínculo.")
+    tenant = authorize(db, user, tenant_id, "users.invite",
+                       school_id=data.school_id, write=True)
+    bind_context(db, user.id, tenant_id)
+    school = db.scalar(select(School).where(
+        School.id == data.school_id, School.tenant_id == tenant_id,
+        School.is_active == True,
+    ))
+    if not school:
+        raise HTTPException(404, "Unidade não encontrada.")
+    role = db.scalar(select(Role).where(
+        Role.id == data.role_id, Role.tenant_id == tenant_id,
+    ))
+    if not role:
+        raise HTTPException(404, "Perfil não encontrado.")
+    if role.code == "org_admin":
+        raise HTTPException(403, "Somente a plataforma pode designar administrador da organização.")
+    role_can_delegate(db, user, tenant_id, role, data.school_id)
+
+    db.scalar(select(Tenant).where(Tenant.id == tenant_id).with_for_update())
+    email = str(data.email).lower().strip()
+    account = db.scalar(select(User).where(User.email == email).with_for_update())
+    if account and not account.is_active:
+        raise HTTPException(409, "A conta existente está desativada; solicite suporte à plataforma.")
+    membership = None
+    if account:
+        membership = db.scalar(select(Membership).where(
+            Membership.tenant_id == tenant_id, Membership.user_id == account.id,
+            Membership.school_id == data.school_id, Membership.role_id == role.id,
+        ).with_for_update())
+        if membership and membership.is_active:
+            raise HTTPException(409, "Este usuário já possui o vínculo ativo.")
+
+    active_in_tenant = bool(account and db.scalar(select(Membership.id).where(
+        Membership.tenant_id == tenant_id, Membership.user_id == account.id,
+        Membership.is_active == True,
+    ).limit(1)))
+    if data.is_active and not active_in_tenant:
+        active_users = db.scalar(select(func.count(func.distinct(Membership.user_id))).where(
+            Membership.tenant_id == tenant_id, Membership.is_active == True,
+        ))
+        if active_users >= tenant.max_users:
+            raise HTTPException(409, "Limite de usuários ativos da organização atingido.")
+
+    created_account = account is None
+    temporary_password = None
+    expires_at = None
+    if created_account:
+        temporary_password = new_temporary_password()
+        expires_at = utcnow() + timedelta(hours=24)
+        account = User(
+            email=email, name=data.name.strip(),
+            password_hash=hash_password(temporary_password),
+            is_active=True, must_change_password=True,
+            temporary_password_expires_at=expires_at,
+        )
+        db.add(account)
+        db.flush()
+    elif membership:
+        membership.is_active = data.is_active
+    else:
+        membership = Membership(
+            tenant_id=tenant_id, user_id=account.id, role_id=role.id,
+            school_id=data.school_id, is_active=data.is_active,
+        )
+        db.add(membership)
+    if created_account:
+        membership = Membership(
+            tenant_id=tenant_id, user_id=account.id, role_id=role.id,
+            school_id=data.school_id, is_active=data.is_active,
+        )
+        db.add(membership)
+    db.flush()
+    logged(db, tenant_id, user, "user.provisioned", "membership", membership.id,
+           role=role.code, school_id=data.school_id, created_account=created_account)
+    db.commit()
+    return {
+        "user_id": account.id, "name": account.name, "email": account.email,
+        "membership_active": membership.is_active, "account_active": account.is_active,
+        "role_code": role.code, "role_name": role.name,
+        "school_id": membership.school_id, "school_name": school.name,
+        "created_account": created_account,
+        "temporary_password": temporary_password,
+        "temporary_password_expires_at": expires_at.isoformat() if expires_at else None,
+    }
+
+
+@app.patch("/api/tenants/{tenant_id}/users/{user_id}")
+def update_tenant_user(tenant_id: str, user_id: str, data: UserMembershipUpdate,
+                       request: Request, user: User = Depends(current_user),
+                       db: Session = Depends(get_db)):
+    require_write(request)
+    bind_context(db, user.id, tenant_id)
+    membership = db.scalar(select(Membership).where(
+        Membership.tenant_id == tenant_id, Membership.user_id == user_id,
+    ).with_for_update())
+    if not membership:
+        raise HTTPException(404, "Vínculo não encontrado.")
+    authorize(db, user, tenant_id, "users.invite",
+              school_id=membership.school_id, write=True)
+    role = db.scalar(select(Role).where(
+        Role.id == membership.role_id, Role.tenant_id == tenant_id,
+    ))
+    if not role or role.code == "org_admin":
+        raise HTTPException(403, "Este vínculo é administrado pela plataforma.")
+    if data.is_active:
+        role_can_delegate(db, user, tenant_id, role, membership.school_id)
+        if not membership.is_active:
+            tenant = db.scalar(select(Tenant).where(Tenant.id == tenant_id).with_for_update())
+            active_in_tenant = db.scalar(select(Membership.id).where(
+                Membership.tenant_id == tenant_id, Membership.user_id == user_id,
+                Membership.is_active == True,
+            ).limit(1))
+            if not active_in_tenant:
+                active_users = db.scalar(select(func.count(func.distinct(Membership.user_id))).where(
+                    Membership.tenant_id == tenant_id, Membership.is_active == True,
+                ))
+                if active_users >= tenant.max_users:
+                    raise HTTPException(409, "Limite de usuários ativos da organização atingido.")
+    membership.is_active = data.is_active
+    logged(db, tenant_id, user,
+           "user.membership_activated" if data.is_active else "user.membership_deactivated",
+           "membership", membership.id, role=role.code, school_id=membership.school_id)
+    db.commit()
+    account = db.get(User, user_id)
+    school = db.get(School, membership.school_id) if membership.school_id else None
+    return {
+        "user_id": account.id, "name": account.name, "email": account.email,
+        "role_id": role.id, "role_code": role.code, "role_name": role.name,
+        "school_id": membership.school_id, "school_name": school.name if school else None,
+        "membership_active": membership.is_active, "account_active": account.is_active,
+        "must_change_password": account.must_change_password,
+        "temporary_password_expires_at": (
+            account.temporary_password_expires_at.isoformat()
+            if account.temporary_password_expires_at else None
+        ),
+    }
+
+
+@app.post("/api/tenants/{tenant_id}/users/{user_id}/reset-password")
+def reset_tenant_user_password(tenant_id: str, user_id: str, request: Request,
+                               user: User = Depends(current_user), db: Session = Depends(get_db)):
+    require_write(request)
+    bind_context(db, user.id, tenant_id)
+    membership = db.scalar(select(Membership).where(
+        Membership.tenant_id == tenant_id, Membership.user_id == user_id,
+        Membership.is_active == True,
+    ).with_for_update())
+    if not membership:
+        raise HTTPException(404, "Usuário ativo não encontrado nesta organização.")
+    authorize(db, user, tenant_id, "users.invite",
+              school_id=membership.school_id, write=True)
+    role = db.scalar(select(Role).where(
+        Role.id == membership.role_id, Role.tenant_id == tenant_id,
+    ))
+    if not role or role.code == "org_admin":
+        raise HTTPException(403, "Este vínculo é administrado pela plataforma.")
+    role_can_delegate(db, user, tenant_id, role, membership.school_id)
+    account = db.scalar(select(User).where(User.id == user_id).with_for_update())
+    if not account or not account.is_active:
+        raise HTTPException(409, "A conta está desativada.")
+    temporary_password = new_temporary_password()
+    expires_at = utcnow() + timedelta(hours=24)
+    account.password_hash = hash_password(temporary_password)
+    account.must_change_password = True
+    account.temporary_password_expires_at = expires_at
+    account.session_version += 1
+    logged(db, tenant_id, user, "user.password_reset", "user", account.id,
+           school_id=membership.school_id, role=role.code)
+    db.commit()
+    return {
+        "user_id": account.id, "email": account.email,
+        "temporary_password": temporary_password,
+        "temporary_password_expires_at": expires_at.isoformat(),
+    }
+
+
 @app.post("/api/tenants/{tenant_id}/invitations", status_code=201)
 def create_invitation(tenant_id: str, data: InvitationCreate, request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)):
     require_write(request)
+    if settings.user_provisioning_mode.strip().lower() != "email":
+        raise HTTPException(409, "Convites por e-mail estão desativados; use o cadastro administrativo.")
     tenant = authorize(db, user, tenant_id, "users.invite", school_id=data.school_id, write=True)
     if data.school_id:
         ensure_school(db, tenant_id, data.school_id)

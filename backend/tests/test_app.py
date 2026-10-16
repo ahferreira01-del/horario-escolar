@@ -6,10 +6,12 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 from app import database
+from app.config import settings
 from app.database import Base
-from app.models import User, Membership, School, Teacher, TeacherSchool, Tenant
+from app.models import User, Membership, School, Teacher, TeacherSchool, Tenant, AuditLog
 from app.main import app
-from app.security import hash_password
+from app import main as main_module
+from app.security import hash_password, verify_password
 
 
 @pytest.fixture
@@ -18,6 +20,8 @@ def context(monkeypatch):
     Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine, expire_on_commit=False)
     monkeypatch.setattr(database, "SessionLocal", Session)
+    # Keep legacy invitation acceptance tests explicit; production defaults to manual provisioning.
+    monkeypatch.setattr(settings, "user_provisioning_mode", "email")
     with Session() as db:
         db.add(User(email="root@example.com", name="Root", password_hash=hash_password("Senha-muito-forte-123"), is_platform_admin=True))
         db.commit()

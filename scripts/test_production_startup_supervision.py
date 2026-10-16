@@ -2,7 +2,7 @@
 """Fault-injection tests for the real production launcher and disposable services.
 
 Requires Python 3.12, Node 22, Docker, and the backend/frontend locked
-dependencies. All PostgreSQL and Redis containers and all app data are temporary.
+dependencies. PostgreSQL and all app data are temporary.
 """
 from __future__ import annotations
 
@@ -26,7 +26,6 @@ import uuid
 
 import psycopg
 from psycopg import sql
-from redis import Redis
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -35,17 +34,11 @@ POSTGRES_IMAGE = (
     "postgres:16@sha256:"
     "ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5b7dbecb641d"
 )
-REDIS_IMAGE = (
-    "redis:7-alpine@sha256:"
-    "858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499"
-)
 OWNER_PASSWORD = "e14-ci-owner-test-only"
 RUNTIME_PASSWORD = "e14-ci-runtime-test-only"
-REDIS_PASSWORD = "e14-ci-redis-test-only"
 ADMIN_EMAIL = "startup-admin@example.com"
 ADMIN_PASSWORD = "e14-ci-admin-password-test-only"
 SYNTHETIC_SESSION_SECRET = "e14-ci-session-key-0123456789-abcdefghijklmnopqrstuvwxyz"
-REDIS_HOST_PORT = 6379
 HTTP_TIMEOUT = 5
 
 
@@ -178,19 +171,14 @@ def pid_running(pid: int) -> bool:
 
 
 class DisposableServices:
-    """Owns one isolated PostgreSQL and one authenticated Redis container."""
+    """Owns one isolated PostgreSQL container."""
 
     def __init__(self) -> None:
         self.project = "hi-e14-" + uuid.uuid4().hex[:10]
         self.pg_name = self.project + "-postgres"
-        self.redis_name = self.project + "-redis"
         self.pg_port = free_port()
-        self.host_alias_file = Path(tempfile.gettempdir()) / f"{self.project}-hosts"
-        self.previous_hostaliases = os.environ.get("HOSTALIASES")
-        self.host_alias_created = False
         self.pg_owner_url = ""
         self.pg_runtime_url = ""
-        self.redis_url = f"redis://:{REDIS_PASSWORD}@redis:{REDIS_HOST_PORT}/0"
 
     def _docker(self, *args: str, timeout: float = 120) -> str:
         result = subprocess.run(
@@ -207,14 +195,6 @@ class DisposableServices:
             )
         return result.stdout.strip()
 
-    def _prepare_redis_host_alias(self) -> None:
-        # Production validation requires the hostname "redis". HOSTALIASES
-        # gives only this test process a loopback mapping without touching
-        # /etc/hosts or any machine-wide configuration.
-        self.host_alias_file.write_text("redis localhost\n", encoding="utf-8")
-        os.environ["HOSTALIASES"] = str(self.host_alias_file)
-        self.host_alias_created = True
-
     def __enter__(self) -> "DisposableServices":
         if sys.version_info[:2] != (3, 12):
             raise RuntimeError(f"Python 3.12 required; found {sys.version.split()[0]}.")
@@ -230,14 +210,8 @@ class DisposableServices:
             raise RuntimeError(f"PNPM 10.26.1 required; found {pnpm_version}.")
         if not shutil.which("docker"):
             raise RuntimeError("Docker is required; startup fault tests cannot be skipped.")
-        if tcp_open(REDIS_HOST_PORT):
-            raise RuntimeError(
-                "Port 6379 is already in use; refusing to share another Redis service."
-            )
-
         try:
-            self._prepare_redis_host_alias()
-            emit(f"Starting disposable PostgreSQL and Redis ({self.project}).")
+            emit(f"Starting disposable PostgreSQL ({self.project}).")
             self._docker(
                 "run", "--detach", "--name", self.pg_name,
                 "--publish", f"127.0.0.1:{self.pg_port}:5432",
@@ -245,13 +219,6 @@ class DisposableServices:
                 "--env", "POSTGRES_USER=postgres",
                 "--env", f"POSTGRES_PASSWORD={OWNER_PASSWORD}",
                 POSTGRES_IMAGE,
-            )
-            self._docker(
-                "run", "--detach", "--name", self.redis_name,
-                "--publish", f"127.0.0.1:{REDIS_HOST_PORT}:6379",
-                "--env", f"REDIS_PASSWORD={REDIS_PASSWORD}",
-                REDIS_IMAGE, "sh", "-ec",
-                'exec redis-server --save "" --appendonly no --requirepass "$REDIS_PASSWORD"',
             )
             self.pg_owner_url = (
                 f"postgresql+psycopg://postgres:{OWNER_PASSWORD}@127.0.0.1:"
@@ -262,23 +229,8 @@ class DisposableServices:
                 f"{self.pg_port}/horario"
             )
             self.wait_postgres()
-            client = Redis.from_url(
-                self.redis_url, socket_connect_timeout=1, socket_timeout=1
-            )
-            try:
-                deadline = time.monotonic() + 20
-                while time.monotonic() < deadline:
-                    try:
-                        if client.ping():
-                            break
-                    except Exception:
-                        time.sleep(0.1)
-                else:
-                    raise RuntimeError("Disposable authenticated Redis did not answer PING.")
-            finally:
-                client.close()
             self.prepare_schema_and_admin()
-            emit("Disposable PostgreSQL is migrated with runtime RLS; authenticated Redis answers PONG.")
+            emit("Disposable PostgreSQL is migrated with runtime RLS.")
             return self
         except Exception:
             self.close()
@@ -343,39 +295,14 @@ class DisposableServices:
         self._docker("start", self.pg_name)
         self.wait_postgres()
 
-    def stop_redis(self) -> None:
-        self._docker("stop", "--time", "2", self.redis_name, timeout=20)
-
-    def start_redis(self) -> None:
-        self._docker("start", self.redis_name)
-        client = Redis.from_url(self.redis_url, socket_connect_timeout=1, socket_timeout=1)
-        try:
-            deadline = time.monotonic() + 20
-            while time.monotonic() < deadline:
-                try:
-                    if client.ping():
-                        return
-                except Exception:
-                    time.sleep(0.1)
-            raise RuntimeError("Disposable Redis did not recover.")
-        finally:
-            client.close()
-
     def close(self) -> None:
-        for name in (self.redis_name, self.pg_name):
+        for name in (self.pg_name,):
             subprocess.run(
                 ["docker", "rm", "--force", name],
                 capture_output=True,
                 text=True,
                 timeout=30,
             )
-        if self.host_alias_created:
-            self.host_alias_file.unlink(missing_ok=True)
-            if self.previous_hostaliases is None:
-                os.environ.pop("HOSTALIASES", None)
-            else:
-                os.environ["HOSTALIASES"] = self.previous_hostaliases
-            self.host_alias_created = False
 
     def __exit__(self, *_exc: object) -> None:
         self.close()
@@ -468,7 +395,6 @@ def launcher_env(
     web_port: int,
     *,
     runtime_url: str | None = None,
-    redis_url: str | None = None,
     path: str | None = None,
     startup_timeout: int = 30,
 ) -> dict[str, str]:
@@ -482,7 +408,6 @@ def launcher_env(
             "ENVIRONMENT": "production",
             "HI_NEXT_DIST_DIR": ".next-production",
             "HI_RUNTIME_DATABASE_URL": runtime_url or services.pg_runtime_url,
-            "AUTH_RATE_LIMIT_REDIS_URL": redis_url or services.redis_url,
             "SESSION_SECRET": SYNTHETIC_SESSION_SECRET,
             "COOKIE_SECURE": "true",
             "PUBLIC_APP_URL": "https://e14-homologacao.example.invalid",
@@ -494,7 +419,6 @@ def launcher_env(
             ),
             "HI_STARTUP_TIMEOUT_SECONDS": str(startup_timeout),
             "HI_CHILD_SHUTDOWN_SECONDS": "3",
-            "HOSTALIASES": str(services.host_alias_file),
         }
     )
     return env
@@ -738,49 +662,6 @@ def test_rls_failure_at_start(
             conn.execute("ALTER ROLE horario_runtime NOBYPASSRLS")
 
 
-def test_redis_unavailable_and_recovery(
-    services: DisposableServices,
-    api_port: int,
-    web_port: int,
-) -> None:
-    services.stop_redis()
-    launcher = Launcher(launcher_env(services, api_port, web_port))
-    try:
-        health, _ = wait_for_http(api_port, "/api/health", {200}, timeout=20, process=launcher)
-        readiness, _ = wait_for_http(api_port, "/api/ready", {503}, timeout=15, process=launcher)
-        root_status, _ = wait_for_http(web_port, "/", {503}, timeout=15, process=launcher)
-        proxied_readiness, _ = wait_for_http(
-            web_port, "/api/ready", {503}, timeout=15, process=launcher
-        )
-        login_status, login_body = request(
-            api_port,
-            "/api/auth/login",
-            method="POST",
-            payload={"email": ADMIN_EMAIL, "password": ADMIN_PASSWORD},
-            headers={"Origin": "https://e14-homologacao.example.invalid"},
-        )
-        if health != 200 or readiness != 503 or root_status != 503 \
-            or proxied_readiness != 503 or login_status != 503:
-            raise AssertionError(
-                f"Redis outage contract mismatch: health={health}, ready={readiness}, "
-                f"root={root_status}, proxied_ready={proxied_readiness}, login={login_status}, "
-                f"response={login_body[:500].decode(errors='replace')}."
-            )
-        services.start_redis()
-        launcher.wait_ready(api_port, web_port, timeout=20)
-        cookie, _csrf = login_cookie(api_port)
-        status, _ = auth_me(api_port, cookie)
-        if status != 200:
-            raise AssertionError(f"Authenticated operation did not recover after Redis: {status}.")
-        emit(
-            f"PASS Redis outage/recovery: health={health}, ready/root/proxied-ready/login="
-            f"{readiness}/{root_status}/{proxied_readiness}/{login_status}; "
-            "readiness and auth recover to 200 after Redis restarts."
-        )
-    finally:
-        launcher.stop()
-
-
 def test_postgres_loss_and_recovery(
     services: DisposableServices,
     api_port: int,
@@ -927,7 +808,6 @@ def main() -> None:
             test_slow_frontend(services, api_port, web_port, temp)
             test_postgres_unavailable_at_start(services, api_port, web_port)
             test_rls_failure_at_start(services, api_port, web_port)
-            test_redis_unavailable_and_recovery(services, api_port, web_port)
             test_postgres_loss_and_recovery(services, api_port, web_port)
             test_critical_process_exit(
                 services,

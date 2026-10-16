@@ -107,17 +107,16 @@ def test_ci_dispatch_actions_and_container_images_are_immutable():
         'postgres_alpine': (
             'postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea'
         ),
-        'redis': (
-            'redis:7-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499'
-        ),
     }
     ci_postgres = yaml.safe_load(workflow_text)['jobs']['backend_postgres']['services']['postgres']['image']
     assert ci_postgres == expected['postgres_ci']
     assert development['services']['db']['image'] == expected['postgres_alpine']
     assert production['services']['db']['image'] == expected['postgres_alpine']
-    assert production['services']['redis']['image'] == expected['redis']
-    redis_test = (ROOT / 'backend/tests/test_phase4w_redis_live.py').read_text(encoding='utf-8')
-    assert expected['redis'] in redis_test
+    assert 'redis' not in production['services']
+    postgres_throttle_test = (
+        ROOT / 'backend/tests/test_phase4x_postgres_login_throttle.py'
+    ).read_text(encoding='utf-8')
+    assert 'HI_TEST_PG_RUNTIME_URL' in postgres_throttle_test
 
 
 def _lesson(start, end, school, cls):

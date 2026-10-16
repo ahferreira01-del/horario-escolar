@@ -17,7 +17,6 @@ REQUIRED = (
     "HI_PUBLIC_HOST",
     "HI_POSTGRES_OWNER_PASSWORD", "HI_POSTGRES_RUNTIME_PASSWORD",
     "HI_DB_OWNER_URL", "HI_DB_RUNTIME_URL", "HI_SESSION_SECRET",
-    "HI_SMTP_HOST", "HI_SMTP_FROM", "HI_REDIS_PASSWORD", "HI_AUTH_REDIS_URL",
 )
 PLACEHOLDER_MARKERS = ("REPLACE", "SUBSTITUA", "CHANGE_ME", "EXAMPLE", "DEV_ONLY")
 
@@ -40,6 +39,9 @@ def load_simple_env(path: Path) -> dict[str, str]:
 
 def validate_config(values: dict[str, str]) -> list[str]:
     errors = []
+    provisioning_mode = values.get("HI_USER_PROVISIONING_MODE", "manual").strip().lower()
+    if provisioning_mode not in {"manual", "email"}:
+        errors.append("HI_USER_PROVISIONING_MODE: use manual ou email")
     for key in REQUIRED:
         value = values.get(key, "")
         if not value or any(tag in value.upper() for tag in PLACEHOLDER_MARKERS):
@@ -56,7 +58,7 @@ def validate_config(values: dict[str, str]) -> list[str]:
         pass
 
     for key in ("HI_POSTGRES_OWNER_PASSWORD", "HI_POSTGRES_RUNTIME_PASSWORD",
-                "HI_SESSION_SECRET", "HI_REDIS_PASSWORD"):
+                "HI_SESSION_SECRET"):
         val = values.get(key, "")
         if val and len(val) < 40:
             errors.append(f"{key}: mínimo 40 caracteres")
@@ -64,7 +66,7 @@ def validate_config(values: dict[str, str]) -> list[str]:
             errors.append(f"{key}: neste perfil usar somente [A-Za-z0-9_-] (ou adaptar URL encoding)")
     credentials = [values.get(key) for key in (
         "HI_POSTGRES_OWNER_PASSWORD", "HI_POSTGRES_RUNTIME_PASSWORD",
-        "HI_REDIS_PASSWORD", "HI_SESSION_SECRET")]
+        "HI_SESSION_SECRET")]
     if any(v and credentials.count(v) > 1 for v in credentials):
         errors.append("Senhas e segredo da sessão devem ser diferentes")
     for field, user, password in [
@@ -80,25 +82,21 @@ def validate_config(values: dict[str, str]) -> list[str]:
                 errors.append(f"{field}: credenciais/esquema/host inconsistentes")
         except (ValueError, TypeError):
             errors.append(f"{field}: formato inválido")
-    try:
-        redis_url = urlsplit(values.get("HI_AUTH_REDIS_URL", ""))
-        if (redis_url.scheme != "redis" or redis_url.hostname != "redis"
-                or redis_url.port != 6379 or redis_url.username not in (None, "")
-                or redis_url.password != values.get("HI_REDIS_PASSWORD")
-                or redis_url.path != "/0"):
-            errors.append("HI_AUTH_REDIS_URL: senha, host ou porta incompatíveis")
-    except (ValueError, TypeError):
-        errors.append("HI_AUTH_REDIS_URL: formato inválido")
-    try:
-        port = int(values.get("HI_SMTP_PORT", "587"))
-        if not 1 <= port <= 65535:
+    if provisioning_mode == "email":
+        for key in ("HI_SMTP_HOST", "HI_SMTP_FROM"):
+            value = values.get(key, "")
+            if not value or any(tag in value.upper() for tag in PLACEHOLDER_MARKERS):
+                errors.append(f"{key}: exigida no modo email")
+        try:
+            port = int(values.get("HI_SMTP_PORT", "587"))
+            if not 1 <= port <= 65535:
+                errors.append("HI_SMTP_PORT: porta inválida")
+        except ValueError:
             errors.append("HI_SMTP_PORT: porta inválida")
-    except ValueError:
-        errors.append("HI_SMTP_PORT: porta inválida")
-    if values.get("HI_SMTP_USER") and not values.get("HI_SMTP_PASSWORD"):
-        errors.append("HI_SMTP_PASSWORD: exigida com HI_SMTP_USER")
-    if "@" not in values.get("HI_SMTP_FROM", ""):
-        errors.append("HI_SMTP_FROM: remetente inválido")
+        if values.get("HI_SMTP_USER") and not values.get("HI_SMTP_PASSWORD"):
+            errors.append("HI_SMTP_PASSWORD: exigida com HI_SMTP_USER")
+        if "@" not in values.get("HI_SMTP_FROM", ""):
+            errors.append("HI_SMTP_FROM: remetente inválido")
     return errors
 
 

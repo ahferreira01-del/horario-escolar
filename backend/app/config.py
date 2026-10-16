@@ -13,7 +13,6 @@ class Settings(BaseSettings):
     session_secret: str = "DEV_ONLY_CHANGE_ME_BEFORE_PRODUCTION_0000000000000000"
     environment: str = "development"
     public_app_url: str = "http://localhost:3000"
-    auth_rate_limit_redis_url: str = ""
     session_max_minutes: int = 120
     cookie_secure: bool = False
     smtp_host: str = ""
@@ -21,10 +20,14 @@ class Settings(BaseSettings):
     smtp_user: str = ""
     smtp_password: str = ""
     smtp_from: str = ""
+    user_provisioning_mode: str = "manual"
 
 
 def validate_production_configuration(cfg: Settings) -> None:
     """Bloqueia inicialização insegura; não altera banco ou credenciais."""
+    provisioning_mode = cfg.user_provisioning_mode.strip().lower()
+    if provisioning_mode not in {"manual", "email"}:
+        raise RuntimeError("USER_PROVISIONING_MODE deve ser manual ou email.")
     if cfg.environment != "production":
         return
     try:
@@ -48,21 +51,14 @@ def validate_production_configuration(cfg: Settings) -> None:
             or public.username or public.password or public.query
             or public.fragment or public.port not in (None, 443)):
         raise RuntimeError("PUBLIC_APP_URL de produção deve usar HTTPS público.")
-    # Redis precisa exigir autenticação; em Docker o hostname é 'redis'.
-    rate_url = urlsplit(cfg.auth_rate_limit_redis_url)
-    if (rate_url.scheme not in ("redis", "rediss")
-            or not rate_url.hostname or not rate_url.password
-            or rate_url.username or rate_url.fragment
-            or rate_url.path not in ("", "/", "/0")
-            or rate_url.port not in (None, 6379)
-            or (rate_url.scheme == "redis" and rate_url.hostname != "redis")):
-        raise RuntimeError("AUTH_RATE_LIMIT_REDIS_URL autenticada é obrigatória em produção.")
     if not 5 <= cfg.session_max_minutes <= 1440:
         raise RuntimeError("SESSION_MAX_MINUTES fora de limites seguros (5–1440).")
-    if (not cfg.smtp_host.strip() or not cfg.smtp_from.strip()
-            or not 1 <= cfg.smtp_port <= 65535
-            or (cfg.smtp_user and not cfg.smtp_password)):
-        raise RuntimeError("SMTP deve estar configurado para convites em produção.")
+    if provisioning_mode == "email" and (
+        not cfg.smtp_host.strip() or not cfg.smtp_from.strip()
+        or not 1 <= cfg.smtp_port <= 65535
+        or (cfg.smtp_user and not cfg.smtp_password)
+    ):
+        raise RuntimeError("SMTP válido é obrigatório no modo de convites por e-mail.")
 
 
 if os.environ.get("ENVIRONMENT", "development").strip().lower() == "production":

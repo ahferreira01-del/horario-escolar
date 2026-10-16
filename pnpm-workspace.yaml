@@ -72,6 +72,10 @@ onlyBuiltDependencies:
   - unrs-resolver
 
 overrides:
+  # Security fixes for the locked transitive runtime dependency tree.
+  proxy-addr: 2.0.8
+  postcss: 8.5.23
+  source-map-js: 1.2.2
   # replit uses linux-x64 only, we can exclude all other platforms
   "esbuild>@esbuild/darwin-arm64": "-"
   "esbuild>@esbuild/darwin-x64": "-"

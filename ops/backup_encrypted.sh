@@ -27,7 +27,7 @@ trap 'rm -rf -- "$tmpdir"' EXIT
 cd "$here"
 # stdout goes directly to age; no plaintext pg_dump is written to disk.
 docker compose --env-file ops/production.env -f docker-compose.production.yml exec -T db \
-  sh -ec 'export PGPASSWORD="$POSTGRES_PASSWORD"; exec pg_dump --username="$POSTGRES_USER" --dbname="$POSTGRES_DB" --format=custom --no-owner --no-acl' \
+  sh -ec 'export PGPASSWORD="$POSTGRES_PASSWORD"; exec pg_dump --username="$POSTGRES_USER" --dbname="$POSTGRES_DB" --format=custom --no-owner' \
   | age -r "$HI_AGE_RECIPIENT" -o "$tmpdir/backup.age"
 
 if [[ ! -s "$tmpdir/backup.age" ]]; then

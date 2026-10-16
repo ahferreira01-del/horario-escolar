@@ -25,7 +25,7 @@ def pytest_sessionstart(session):
 
     if os.environ.get("HI_REQUIRE_DOCKER_TESTS") == "1":
         if shutil.which("docker") is None:
-            raise RuntimeError("Docker é obrigatório para os gates Redis/Compose do CI.")
+            raise RuntimeError("Docker é obrigatório para os gates de integração do CI.")
         for command in (["docker", "info"], ["docker", "compose", "version"]):
             try:
                 result = subprocess.run(

@@ -39,7 +39,7 @@ def main():
             fields.nth(1).fill('Administrador CI')
             invite_email = f'admin-{suffix}@example.com'
             fields.nth(2).fill(invite_email)
-            page.get_by_role('button', name='Criar e convidar').click()
+            page.get_by_test_id('create-organization-submit').click()
             expect(page.get_by_text('Organização criada: '+org_name)).to_be_visible(timeout=15000)
             expect(page.get_by_role('cell',name=org_name)).to_be_visible()
             invitation_url(page, invite_email, BASE)

@@ -20,8 +20,6 @@ def test_compose_production_no_public_db_or_api_ports(tmp_path):
         "HI_DB_OWNER_URL":f"postgresql+psycopg://horario_owner:{'A'*48}@db:5432/horario",
         "HI_DB_RUNTIME_URL":f"postgresql+psycopg://horario_runtime:{'B'*48}@db:5432/horario",
         "HI_SESSION_SECRET":"C"*64,
-        "HI_REDIS_PASSWORD":"D"*48,
-        "HI_AUTH_REDIS_URL":"redis://:"+"D"*48+"@redis:6379/0",
         "HI_SMTP_HOST":"smtp.escolas-teste.org",
         "HI_SMTP_PORT":"587",
         "HI_SMTP_USER":"smtp-user",
@@ -38,8 +36,8 @@ def test_compose_production_no_public_db_or_api_ports(tmp_path):
     ],capture_output=True,text=True,timeout=30)
     assert p.returncode==0, p.stderr[:1000]
     services=json.loads(p.stdout)["services"]
-    assert set(services)=={"db","migrate","redis","api","web","edge"}
-    for name in ("db","migrate","redis","api","web"):
+    assert set(services)=={"db","migrate","api","web","edge"}
+    for name in ("db","migrate","api","web"):
         assert "ports" not in services[name],name
     edge=services["edge"]
     ports={str(p["published"]) for p in edge["ports"]}
@@ -49,23 +47,11 @@ def test_compose_production_no_public_db_or_api_ports(tmp_path):
     assert services["api"]["environment"]["DATABASE_URL"].split("://")[1].startswith("horario_runtime:")
     assert services["migrate"]["environment"]["DATABASE_URL"].split("://")[1].startswith("horario_owner:")
     assert set(services["db"]["networks"]) == {"data_net"}
-    assert set(services["redis"]["networks"]) == {"data_net"}
     assert set(services["migrate"]["networks"]) == {"data_net"}
     assert set(services["api"]["networks"]) == {"data_net","service_net"}
     assert set(services["web"]["networks"]) == {"service_net","edge_net"}
     assert set(services["edge"]["networks"]) == {"edge_net"}
     assert not (set(services["edge"]["networks"]) & set(services["db"]["networks"]))
-    assert not (set(services["edge"]["networks"]) & set(services["redis"]["networks"]))
     assert "healthcheck" in services["api"]
-    assert "healthcheck" in services["redis"]
-    assert services["api"]["depends_on"]["redis"]["condition"]=="service_healthy"
-    # Docker Compose must keep the shell variable for expansion INSIDE the
-    # redis container, never interpolate it from the CI host environment.
-    redis_command = " ".join(services["redis"]["command"])
-    redis_health = " ".join(services["redis"]["healthcheck"]["test"])
-    assert '$REDIS_PASSWORD' in redis_command
-    assert '$REDIS_PASSWORD' in redis_health
-    assert fake["HI_REDIS_PASSWORD"] not in redis_command
-    assert "REDIS_PASSWORD variable is not set" not in p.stderr
-    assert "AUTH_RATE_LIMIT_REDIS_URL" in services["api"]["environment"]
+    assert "AUTH_RATE_LIMIT_REDIS_URL" not in services["api"]["environment"]
     assert services["web"]["depends_on"]["api"]["condition"]=="service_healthy"

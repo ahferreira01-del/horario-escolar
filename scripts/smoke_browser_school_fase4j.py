@@ -42,7 +42,7 @@ def main(after_preview=None):
             form.locator("input").nth(0).fill(org)
             form.locator("input").nth(1).fill("Diretora Escolar CI")
             form.locator("input").nth(2).fill(email)
-            page.get_by_role("button", name="Criar e convidar").click()
+            page.get_by_test_id("create-organization-submit").click()
             expect(page.get_by_text("Organização criada: " + org)).to_be_visible()
             # Convite emitido apenas em development; não é uma autorização de produção.
             invite_url = invitation_url(page, email, BASE)

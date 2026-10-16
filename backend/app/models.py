@@ -33,6 +33,9 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(255))
     is_platform_admin: Mapped[bool] = mapped_column(Boolean, default=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    must_change_password: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    temporary_password_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    session_version: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
@@ -413,4 +416,16 @@ class PublishedClass(Base):
         UniqueConstraint('publication_id','class_id'),
         ForeignKeyConstraint(['publication_id','tenant_id','school_id'], ['published_grades.id','published_grades.tenant_id','published_grades.school_id']),
         ForeignKeyConstraint(['class_id','tenant_id','school_id'], ['school_classes.id','school_classes.tenant_id','school_classes.school_id']),
+    )
+
+
+class AuthLoginLimit(Base):
+    """Opaque, shared login-attempt counters; contains no account identifiers."""
+    __tablename__ = "auth_login_limits"
+    identity_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False)
+    window_started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    __table_args__ = (
+        CheckConstraint("attempts >= 1", name="auth_login_limits_positive_attempts"),
     )

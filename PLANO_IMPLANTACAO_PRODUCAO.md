@@ -6,7 +6,7 @@
 - `docker-compose.production.yml`: stack **separada** do Compose de desenvolvimento; PostgreSQL 16 persistente sem publicação de porta; migração Alembic como serviço `maintenance` executado explicitamente; backend com credencial `horario_runtime` exclusiva e RLS `FORCE` obrigatório; frontend Next.js interno; Caddy como única borda exposta em **80/443** com HTTPS.
 - `ops/Caddyfile`: TLS automático e reverse proxy same-origin para Next.js; Next.js encaminha `/api/*` ao backend pela rede Docker.
 - `ops/production.env.example`: apenas placeholders. Copiar para `ops/production.env` (protegido no `.gitignore`). Nunca versionar segredos, dumps, backups ou arquivos de acesso.
-- `ops/preflight_production.py`: checagem **offline** de placeholders, URLs, usuários owner/runtime diferentes, segredos, SMTP e hostname sem revelar valores.
+- `ops/preflight_production.py`: checagem **offline** de placeholders, URLs, usuários owner/runtime diferentes, segredos e hostname sem revelar valores; SMTP só é exigido quando `HI_USER_PROVISIONING_MODE=email`.
 - `backend/app/config.py`: em `ENVIRONMENT=production`, recusa banco SQLite/superuser/owner, cookie não seguro, HTTP, URL local, segredo fraco, SMTP incompleto e sessão fora de limites.
 - `GET /api/ready`: verifica banco e contrato PostgreSQL/RLS, retorna **503 sem detalhes internos** se inseguro/indisponível. `/api/health` é apenas liveness; não substituir readiness por health na decisão de liberação.
 - `backend/app/cli.py`: aceita `--password-stdin` para bootstrap do primeiro admin, evitando senha em argumentos de processo.

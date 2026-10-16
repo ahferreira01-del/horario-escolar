@@ -53,14 +53,14 @@ jobs:
         env:
           DATABASE_URL: postgresql+psycopg://horario_runtime:test_runtime_password@localhost:5432/horario
           HI_REQUIRE_TEST_POSTGRES: '1'
-          HI_REQUIRE_DOCKER_TESTS: '1'
-          HI_REQUIRE_REDIS_E2E: '1'
+          HI_REQUIRE_POSTGRES_AUTH_THROTTLE: '1'
+          HI_REQUIRE_BACKUP_RESTORE_TEST: '1'
           HI_TEST_PG_OWNER_URL: postgresql+psycopg://postgres:test_owner_password@localhost:5432/horario
           HI_TEST_PG_RUNTIME_URL: postgresql+psycopg://horario_runtime:test_runtime_password@localhost:5432/horario
         run: |
           pytest -q -rs --junitxml=../backend_test_results.xml
           python ../scripts/verify_ci_pg_fase4h.py ../backend_test_results.xml
-          python ../scripts/verify_ci_redis_fase4w.py ../backend_test_results.xml
+          python ../scripts/verify_ci_postgres_auth_throttle.py ../backend_test_results.xml
       - name: Smoke HTTP de desenvolvimento (SQLite, complementar)
         run: python scripts/smoke_http_fase4g.py
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

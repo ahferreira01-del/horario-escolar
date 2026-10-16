@@ -156,8 +156,12 @@ def _school_publish_flow(director_page, info):
         official.get_by_role("button", name="Pré-validar publicação").click()
         expect(official.get_by_text("vigência sobreposta", exact=False)).to_be_visible()
         expect(published_row).to_have_count(1)
-        print("OFFICIAL_BROWSER_PASSED: coordenador sem permissão, segregação de aprovação, "
-              "pré-validação, publicação, vigência exclusiva e exportações CSV/PDF/XLSX.")
+        result = ("coordenador sem permissão, segregação de aprovação, pré-validação, "
+                  "publicação, vigência exclusiva e exportações CSV/PDF/XLSX.")
+        if os.environ.get("GITHUB_ACTIONS") == "true":
+            print(f"OFFICIAL_BROWSER_PASSED: {result}")
+        else:
+            print(f"BROWSER_PASSED: {result}")
     finally:
         coordinator_context.close()
 
