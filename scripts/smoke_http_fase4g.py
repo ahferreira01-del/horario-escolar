@@ -57,6 +57,7 @@ def smoke():
         env=os.environ.copy()
         env.update({'DATABASE_URL':f'sqlite:///{db}', 'ENVIRONMENT':'development',
                     'SESSION_SECRET':secrets.token_urlsafe(48),'COOKIE_SECURE':'false',
+                    'USER_PROVISIONING_MODE':'email',
                     'PYTHONPATH':str(BACKEND)})
         run(['-m','app.cli','init-db'],env)
         run(['-m','app.cli','bootstrap-platform','--email','root@example.com',
