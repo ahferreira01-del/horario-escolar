@@ -42,10 +42,23 @@ def tenant_with_admin(client, suffix):
                     json={"name":f"Rede {suffix}","first_admin_email":f"diretor-{suffix}@example.com","first_admin_name":f"Diretor {suffix}"})
     assert r.status_code==201, r.text
     tenant_id = r.json()["id"]
-    parsed = urllib.parse.parse_qs(urllib.parse.urlsplit(r.json()["dev_invitation_url"]).query)
-    r = client.post("/api/auth/accept-invitation",json={"tenant_id":tenant_id,"token":parsed["token"][0],"name":"Diretor","password":"Senha-forte-diretor-123"})
-    assert r.status_code==200, r.text
-    h={"X-CSRF-Token":r.json()["csrf"]}
+    if "dev_invitation_url" in r.json():
+        parsed = urllib.parse.parse_qs(urllib.parse.urlsplit(r.json()["dev_invitation_url"]).query)
+        r = client.post("/api/auth/accept-invitation",json={"tenant_id":tenant_id,"token":parsed["token"][0],"name":"Diretor","password":"Senha-forte-diretor-123"})
+        assert r.status_code==200, r.text
+        h={"X-CSRF-Token":r.json()["csrf"]}
+    else:
+        first_admin = r.json()["first_admin"]
+        assert first_admin["created_account"] is True
+        temporary_password = first_admin["temporary_password"]
+        assert temporary_password and len(temporary_password) >= 20
+        h = login(client, f"diretor-{suffix}@example.com", temporary_password)
+        changed = client.post("/api/auth/change-password", headers=h, json={
+            "new_password": "Senha-forte-diretor-123",
+            "confirm_password": "Senha-forte-diretor-123",
+        })
+        assert changed.status_code == 200, changed.text
+        h = {"X-CSRF-Token": changed.json()["csrf"]}
     return tenant_id, h
 
 
