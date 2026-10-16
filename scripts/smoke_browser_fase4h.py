@@ -42,7 +42,15 @@ def main():
             page.get_by_test_id('create-organization-submit').click()
             expect(page.get_by_text('Organização criada: '+org_name)).to_be_visible(timeout=15000)
             expect(page.get_by_role('cell',name=org_name)).to_be_visible()
-            invitation_url(page, invite_email, BASE)
+            credential_dialog = page.get_by_test_id('credential-dialog')
+            if credential_dialog.count():
+                expect(credential_dialog).to_be_visible()
+                expect(page.get_by_test_id('temporary-password-value')).to_be_visible()
+                expect(page.get_by_test_id('temporary-password-expiry')).to_be_visible()
+                page.get_by_test_id('credential-close').click()
+                expect(credential_dialog).to_have_count(0)
+            else:
+                invitation_url(page, invite_email, BASE)
             print('BROWSER_PASSED: login, sessão, navegação, CSRF e cadastro de organização no Next.js')
         finally:
             browser.close()
