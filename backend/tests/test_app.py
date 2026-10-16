@@ -71,12 +71,31 @@ def school(client, tenant_id, h, name="Centro"):
 def invitation(client, tenant, h, role, school_id, email, teacher_id=None):
     roles=client.get(f"/api/tenants/{tenant}/roles").json()
     role_id=next(r["id"] for r in roles if r["code"]==role)
+    if settings.user_provisioning_mode.strip().lower() == "manual":
+        # The isolated PostgreSQL integration tests exercise the new API
+        # instead of expecting an invitation which is disabled in this mode.
+        assert teacher_id is None, "Teacher identity linking needs its own manual test"
+        r=client.post(f"/api/tenants/{tenant}/users",headers=h,json={
+            "name": email.split("@")[0], "email": email, "role_id": role_id,
+            "school_id": school_id, "is_active": True,
+        })
+        assert r.status_code==201, r.text
+        assert r.json()["created_account"] is True
+        return {"email": email, "temporary_password": r.json()["temporary_password"]}
     r=client.post(f"/api/tenants/{tenant}/invitations",headers=h,json={"email":email,"role_id":role_id,"school_id":school_id,"teacher_id":teacher_id})
     assert r.status_code==201, r.text
     return urllib.parse.parse_qs(urllib.parse.urlsplit(r.json()["dev_invitation_url"]).query)["token"][0]
 
 
 def accept(client, tenant, token, name="Usuário"):
+    if isinstance(token, dict):
+        headers=login(client, token["email"], token["temporary_password"])
+        changed=client.post("/api/auth/change-password",headers=headers,json={
+            "new_password":"senha-super-segura-123",
+            "confirm_password":"senha-super-segura-123",
+        })
+        assert changed.status_code==200, changed.text
+        return {"X-CSRF-Token":changed.json()["csrf"]}
     r=client.post("/api/auth/accept-invitation",json={"tenant_id":tenant,"token":token,"name":name,"password":"senha-super-segura-123"})
     assert r.status_code==200, r.text
     return {"X-CSRF-Token":r.json()["csrf"]}
