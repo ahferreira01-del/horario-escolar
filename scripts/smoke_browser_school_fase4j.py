@@ -9,6 +9,7 @@ import uuid
 
 from playwright.sync_api import expect, sync_playwright
 from phase4x2d_test_support import assert_local_candidate_url, browser_launch_options, invitation_url
+from smoke_browser_manual_provisioning import logout, change_temporary_password
 
 BASE = os.environ.get("HI_BROWSER_URL", "http://127.0.0.1:3000")
 EMAIL = os.environ.get("HI_BROWSER_ADMIN_EMAIL", "admin-e2e@example.com")
@@ -44,16 +45,27 @@ def main(after_preview=None):
             form.locator("input").nth(2).fill(email)
             page.get_by_test_id("create-organization-submit").click()
             expect(page.get_by_text("Organização criada: " + org)).to_be_visible()
-            # Convite emitido apenas em development; não é uma autorização de produção.
-            invite_url = invitation_url(page, email, BASE)
-            assert "/convite?" in invite_url
-            page.goto(invite_url, wait_until="domcontentloaded")
-            expect(page.get_by_role("heading", name="Ativar seu acesso")).to_be_visible()
-            page.locator("form input").nth(0).fill("Diretora Escolar CI")
-            page.locator("form input").nth(1).fill(secret)
-            page.get_by_role("button", name="Aceitar convite").click()
-            expect(page.get_by_text("Acesso ativado com sucesso.")).to_be_visible()
-            page.get_by_role("link", name="Ir para o painel").click()
+            credential_dialog = page.get_by_test_id("credential-dialog")
+            manual_provisioning = bool(credential_dialog.count())
+            if manual_provisioning:
+                expect(credential_dialog).to_be_visible()
+                temporary_password = page.get_by_test_id("temporary-password-value").inner_text()
+                assert len(temporary_password) >= 20
+                page.get_by_test_id("credential-close").click()
+                expect(credential_dialog).to_have_count(0)
+                logout(page)
+                change_temporary_password(page, (email, temporary_password), secret)
+            else:
+                # Fluxo legado por convite, somente no ambiente descartável.
+                invite_url = invitation_url(page, email, BASE)
+                assert "/convite?" in invite_url
+                page.goto(invite_url, wait_until="domcontentloaded")
+                expect(page.get_by_role("heading", name="Ativar seu acesso")).to_be_visible()
+                page.locator("form input").nth(0).fill("Diretora Escolar CI")
+                page.locator("form input").nth(1).fill(secret)
+                page.get_by_role("button", name="Aceitar convite").click()
+                expect(page.get_by_text("Acesso ativado com sucesso.")).to_be_visible()
+                page.get_by_role("link", name="Ir para o painel").click()
 
             # A administração escolar nunca deve exibir gestão global de organizações.
             expect(page.get_by_role("button", name="Escolas")).to_be_visible()
@@ -103,7 +115,7 @@ def main(after_preview=None):
             expect(page.get_by_text("Cobertura completa")).to_be_visible()
             if after_preview is not None:
                 after_preview(page, {"organization": org, "director_email": email,
-                                     "director_password": secret, "school": school,
+                                     "director_password": secret, "manual_provisioning": manual_provisioning, "school": school,
                                      "teacher": teacher, "subject": subject,
                                      "class": klass, "year": 2028})
             print("SCHOOL_BROWSER_PASSED: convite, escopo do admin, escola, professor, disponibilidade, turma, atribuição e prévia.")
