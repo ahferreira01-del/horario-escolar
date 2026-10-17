@@ -2,12 +2,20 @@ name: Horário Inteligente — testes e homologação reproduzível
 on:
   push:
   pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+env:
+  # Nunca use o Package Firewall HTTP do Replit neste workflow.
+  PIP_INDEX_URL: https://pypi.org/simple
+  PIP_TRUSTED_HOST: ''
+  PIP_EXTRA_INDEX_URL: ''
 jobs:
   backend_postgres:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     services:
       postgres:
-        image: postgres:16
+        image: "postgres:16@sha256:ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5b7dbecb641d"
         env:
           POSTGRES_DB: horario
           POSTGRES_USER: postgres
@@ -18,12 +26,16 @@ jobs:
           --health-cmd "pg_isready -U postgres -d horario" --health-interval 3s
           --health-timeout 3s --health-retries 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.12'
-      - name: Dependências Python
-        run: pip install -r backend/requirements.txt
+      - name: Validar PyPI HTTPS e instalar dependências Python travadas
+        run: |
+          python scripts/verify_ci_python_index.py
+          python -m pip install --disable-pip-version-check --no-input \
+            --require-hashes --only-binary=:all: \
+            --index-url "$PIP_INDEX_URL" -r backend/requirements-ci.lock
       - name: Criar conta isolada de runtime (PostgreSQL efêmero)
         run: |
           python - <<'PY'
@@ -31,7 +43,7 @@ jobs:
           with psycopg.connect('postgresql://postgres:test_owner_password@localhost:5432/horario',autocommit=True) as c:
               c.execute("CREATE ROLE horario_runtime WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS NOINHERIT PASSWORD 'test_runtime_password'")
           PY
-      - name: Migrar banco real + RLS
+      - name: Migrar PostgreSQL efêmero + RLS
         working-directory: backend
         env:
           DATABASE_URL: postgresql+psycopg://postgres:test_owner_password@localhost:5432/horario
@@ -39,24 +51,31 @@ jobs:
       - name: Testar isolamento real, publicações, concorrência e relatórios
         working-directory: backend
         env:
-          DATABASE_URL: sqlite:///./ci-dev.sqlite
+          DATABASE_URL: postgresql+psycopg://horario_runtime:test_runtime_password@localhost:5432/horario
+          HI_REQUIRE_TEST_POSTGRES: '1'
+          HI_REQUIRE_POSTGRES_AUTH_THROTTLE: '1'
+          HI_REQUIRE_BACKUP_RESTORE_TEST: '1'
           HI_TEST_PG_OWNER_URL: postgresql+psycopg://postgres:test_owner_password@localhost:5432/horario
           HI_TEST_PG_RUNTIME_URL: postgresql+psycopg://horario_runtime:test_runtime_password@localhost:5432/horario
         run: |
           pytest -q -rs --junitxml=../backend_test_results.xml
           python ../scripts/verify_ci_pg_fase4h.py ../backend_test_results.xml
+          python ../scripts/verify_ci_postgres_auth_throttle.py ../backend_test_results.xml
       - name: Smoke HTTP de desenvolvimento (SQLite, complementar)
         run: python scripts/smoke_http_fase4g.py
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
           name: backend-test-results
           path: backend_test_results.xml
   frontend_browser_postgres:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    env:
+      NPM_CONFIG_REGISTRY: https://registry.npmjs.org/
+      NPM_CONFIG_STRICT_SSL: 'true'
     services:
       postgres:
-        image: postgres:16
+        image: "postgres:16@sha256:ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5b7dbecb641d"
         env:
           POSTGRES_DB: horario
           POSTGRES_USER: postgres
@@ -67,19 +86,37 @@ jobs:
           --health-cmd "pg_isready -U postgres -d horario" --health-interval 3s
           --health-timeout 3s --health-retries 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.12'
-      - uses: actions/setup-node@v4
+      - name: Validar PyPI HTTPS e instalar dependências Python travadas
+        run: |
+          python scripts/verify_ci_python_index.py
+          python -m pip install --disable-pip-version-check --no-input \
+            --require-hashes --only-binary=:all: \
+            --index-url "$PIP_INDEX_URL" -r backend/requirements-ci.lock
+          python -m playwright install --with-deps chromium
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with:
+          version: 10.26.1
+          run_install: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '22'
-      - name: Dependências e Chromium
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Instalar frontend pelo lockfile congelado e registry HTTPS
+        run: pnpm install --frozen-lockfile --filter ./frontend --registry https://registry.npmjs.org/
+      - name: Preflight Chromium headless obrigatório
         run: |
-          pip install -r backend/requirements.txt 'playwright>=1.48,<2'
-          python -m playwright install --with-deps chromium
-          cd frontend
-          npm install --no-audit --no-fund
+          python - <<'PY'
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as playwright:
+              browser = playwright.chromium.launch(headless=True)
+              print(f"CI_CHROMIUM_LAUNCH_PASS={browser.version}")
+              browser.close()
+          PY
       - name: Preparar PostgreSQL descartável com owner e runtime distintos
         run: |
           python - <<'PY'
@@ -96,12 +133,11 @@ jobs:
         working-directory: frontend
         env:
           API_BACKEND_URL: http://127.0.0.1:8000
+          HI_NEXT_DIST_DIR: .next-production
         run: |
-          npm run lint:types
-          npm run build
-          mkdir -p .next/standalone/.next
-          cp -a .next/static .next/standalone/.next/static
-          if [ -d public ]; then cp -a public .next/standalone/public; fi
+          pnpm run lint:types
+          bash ../build-production.sh
+          python ../scripts/verify_next_standalone.py .next-production/standalone
       - name: Criar administrador fictício via owner e iniciar API via runtime RLS
         env:
           DATABASE_URL: postgresql+psycopg://horario_runtime:test_runtime_password@127.0.0.1:5432/horario
@@ -110,41 +146,129 @@ jobs:
           COOKIE_SECURE: 'false'
           PUBLIC_APP_URL: http://127.0.0.1:3000
           API_BACKEND_URL: http://127.0.0.1:8000
+          HI_RELEASE_SHA: ${{ github.sha }}
         run: |
-          set -e
+          set -euo pipefail
           (cd backend && DATABASE_URL=postgresql+psycopg://postgres:test_owner_password@127.0.0.1:5432/horario python -m app.cli bootstrap-platform --email admin-e2e@example.com --name 'Admin CI' --password 'Senha-Teste-Homologacao-123!')
           (cd backend && nohup python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 >/tmp/horario-api.log 2>&1 &)
-          (cd frontend && PORT=3000 HOSTNAME=127.0.0.1 nohup node .next/standalone/server.js >/tmp/horario-web.log 2>&1 &)
+          if [ -f frontend/.next-production/standalone/horario-escolar/frontend/server.js ]; then
+            standalone_server=.next-production/standalone/horario-escolar/frontend/server.js
+          elif [ -f frontend/.next-production/standalone/frontend/server.js ]; then
+            standalone_server=.next-production/standalone/frontend/server.js
+          elif [ -f frontend/.next-production/standalone/server.js ]; then
+            standalone_server=.next-production/standalone/server.js
+          else
+            echo "Next standalone server was not found in the generated artifact." >&2
+            exit 1
+          fi
+          (cd frontend && PORT=3000 HOSTNAME=127.0.0.1 HI_NEXT_DIST_DIR=.next-production nohup node "$standalone_server" >/tmp/horario-web.log 2>&1 &)
           for i in $(seq 1 60); do
             if curl -sf http://127.0.0.1:8000/api/health >/dev/null && curl -sf http://127.0.0.1:3000/ >/dev/null; then exit 0; fi
             sleep 2
           done
           cat /tmp/horario-api.log /tmp/horario-web.log
           exit 1
+      - name: Verificar identidade exata do build executado
+        env:
+          EXPECTED_RELEASE_SHA: ${{ github.sha }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from urllib.request import urlopen
+
+          with urlopen("http://127.0.0.1:8000/api/release", timeout=5) as response:
+              payload = json.load(response)
+          expected = os.environ["EXPECTED_RELEASE_SHA"]
+          assert payload.get("release_identified") is True, payload
+          assert payload.get("release_sha") == expected, payload
+          print(f"CI_RELEASE_SHA_VERIFIED={expected}")
+          PY
       - name: Smoke Chromium integrado com PostgreSQL e RLS
         env:
           HI_BROWSER_URL: http://127.0.0.1:3000
           HI_BROWSER_ADMIN_EMAIL: admin-e2e@example.com
           HI_BROWSER_ADMIN_PASSWORD: Senha-Teste-Homologacao-123!
-        run: python scripts/smoke_browser_fase4h.py
+        run: |
+          set -euo pipefail
+          python scripts/smoke_browser_fase4h.py | tee /tmp/horario-e2e-4h.log
+          grep -q '^BROWSER_PASSED:' /tmp/horario-e2e-4h.log
       - name: Fluxo escolar de ponta a ponta no Chromium e PostgreSQL
         env:
           HI_BROWSER_URL: http://127.0.0.1:3000
           HI_BROWSER_ADMIN_EMAIL: admin-e2e@example.com
           HI_BROWSER_ADMIN_PASSWORD: Senha-Teste-Homologacao-123!
-        run: python scripts/smoke_browser_school_fase4j.py
+        run: |
+          set -euo pipefail
+          python scripts/smoke_browser_school_fase4j.py | tee /tmp/horario-e2e-4j.log
+          grep -q '^SCHOOL_BROWSER_PASSED:' /tmp/horario-e2e-4j.log
+      - name: E2E 4K — publicação apenas no PostgreSQL descartável
+        id: e2e_4k
+        env:
+          HI_BROWSER_URL: http://127.0.0.1:3000
+          HI_BROWSER_ADMIN_EMAIL: admin-e2e@example.com
+          HI_BROWSER_ADMIN_PASSWORD: Senha-Teste-Homologacao-123!
+        run: |
+          set -euo pipefail
+          python scripts/smoke_browser_publication_fase4k.py | tee /tmp/horario-e2e-4k.log
+          grep -q '^OFFICIAL_BROWSER_PASSED:' /tmp/horario-e2e-4k.log
+      - name: Registrar evidência oficial 4K
+        if: ${{ success() && steps.e2e_4k.outcome == 'success' }}
+        run: echo OFFICIAL_BROWSER_PASSED
       - name: Coletar logs em caso de falha
         if: failure()
         run: |
           cat /tmp/horario-api.log /tmp/horario-web.log 2>/dev/null || true
   solver_legacy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: solver_poc_v0_2
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.12'
-      - run: pip install -r requirements.txt && pytest -q
+      - name: Validar PyPI HTTPS e instalar dependências do solver travadas
+        run: |
+          python ../scripts/verify_ci_python_index.py
+          python -m pip install --disable-pip-version-check --no-input \
+            --require-hashes --only-binary=:all: \
+            --index-url "$PIP_INDEX_URL" -r requirements-ci.lock
+      - run: pytest -q
+  production_startup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      NPM_CONFIG_REGISTRY: https://registry.npmjs.org/
+      NPM_CONFIG_STRICT_SSL: 'true'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12'
+      - name: Validar PyPI HTTPS e instalar dependências Python travadas
+        run: |
+          python scripts/verify_ci_python_index.py
+          python -m pip install --disable-pip-version-check --no-input \
+            --require-hashes --only-binary=:all: \
+            --index-url "$PIP_INDEX_URL" -r backend/requirements-ci.lock
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with:
+          version: 10.26.1
+          run_install: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Instalar frontend pelo lockfile congelado
+        run: pnpm install --frozen-lockfile --filter ./frontend --registry https://registry.npmjs.org/
+      - name: Verificar tipos do frontend
+        run: pnpm --filter ./frontend run lint:types
+      - name: Matriz real de startup, dependências e recuperação
+        env:
+          EXPECTED_RELEASE_SHA: ${{ github.sha }}
+        run: python scripts/test_production_startup_supervision.py
+      - name: Smoke dos layouts standalone GitHub e Replit
+        run: python scripts/smoke_production_startup_layouts.py

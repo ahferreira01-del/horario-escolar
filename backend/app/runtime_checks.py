@@ -118,6 +118,6 @@ def verify_database_isolation(db_engine=None):
             "WHERE actor.rolname = current_user")).scalars().all()
         checked = validate_rls_contract(role, tables, policies, tenant_tables, role_memberships)
         version = conn.scalar(text('SELECT version_num FROM alembic_version'))
-        if version != '0003':
-            raise RuntimeError('Banco não está na migração aprovada (0003).')
+        if version != '0005':
+            raise RuntimeError('Banco não está na migração aprovada (0005).')
         return {'engine': 'postgresql', 'rls': 'enforced', 'checked_tables': checked}

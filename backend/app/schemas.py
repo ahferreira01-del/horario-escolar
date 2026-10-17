@@ -34,6 +34,23 @@ class InvitationAccept(BaseModel):
     password: str | None = None
 
 
+class UserProvisionCreate(BaseModel):
+    name: str = Field(min_length=2, max_length=160)
+    email: EmailStr
+    role_id: str
+    school_id: str
+    is_active: bool = True
+
+
+class UserMembershipUpdate(BaseModel):
+    is_active: bool
+
+
+class PasswordChange(BaseModel):
+    new_password: str = Field(min_length=12, max_length=256)
+    confirm_password: str = Field(min_length=12, max_length=256)
+
+
 class RoleCreate(BaseModel):
     code: str = Field(pattern=r"^[a-z][a-z0-9_-]{2,40}$")
     name: str = Field(min_length=2, max_length=100)

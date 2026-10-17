@@ -34,3 +34,12 @@ def test_backup_requires_age_encryption_and_pipefail():
     assert "pg_dump" in script
     assert 'HI_BACKUP_DIR' in script
     assert "umask 077" in script
+    assert "--no-acl" not in script
+
+
+def test_restore_preserves_and_checks_acl_and_runtime_rls():
+    script=(ROOT/"ops"/"restore_drill.sh").read_text(encoding="utf-8")
+    assert "--no-acl" not in script
+    assert "version_num" in script and "0005" in script
+    assert "has_table_privilege" in script
+    assert "horario_runtime" in script

@@ -4,7 +4,7 @@
 name: horario-inteligente
 services:
   db:
-    image: postgres:16-alpine
+    image: "postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea"
     restart: unless-stopped
     environment:
       POSTGRES_DB: horario
@@ -36,20 +36,6 @@ services:
     restart: "no"
     security_opt:
       - no-new-privileges:true
-  redis:
-    image: redis:7-alpine
-    restart: unless-stopped
-    environment:
-      REDIS_PASSWORD: ${HI_REDIS_PASSWORD:?Set Redis authentication secret}
-    command: ["sh", "-ec", "exec redis-server --save '' --appendonly no --requirepass \"$$REDIS_PASSWORD\""]
-    networks: [data_net]
-    healthcheck:
-      test: ["CMD-SHELL", "REDISCLI_AUTH=$$REDIS_PASSWORD redis-cli ping | grep -q PONG"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-    security_opt:
-      - no-new-privileges:true
   api:
     build:
       context: ./backend
@@ -57,21 +43,19 @@ services:
     environment:
       ENVIRONMENT: production
       DATABASE_URL: ${HI_DB_RUNTIME_URL:?Runtime-only URL}
-      AUTH_RATE_LIMIT_REDIS_URL: ${HI_AUTH_REDIS_URL:?Set Redis URL with password}
       SESSION_SECRET: ${HI_SESSION_SECRET:?Set unique session secret}
       COOKIE_SECURE: "true"
       PUBLIC_APP_URL: https://${HI_PUBLIC_HOST:?Set public DNS host}
       SESSION_MAX_MINUTES: ${HI_SESSION_MAX_MINUTES:-120}
-      SMTP_HOST: ${HI_SMTP_HOST:?Set SMTP service}
+      USER_PROVISIONING_MODE: ${HI_USER_PROVISIONING_MODE:-manual}
+      SMTP_HOST: ${HI_SMTP_HOST:-}
       SMTP_PORT: ${HI_SMTP_PORT:-587}
       SMTP_USER: ${HI_SMTP_USER:-}
       SMTP_PASSWORD: ${HI_SMTP_PASSWORD:-}
-      SMTP_FROM: ${HI_SMTP_FROM:?Set sender}
+      SMTP_FROM: ${HI_SMTP_FROM:-}
     networks: [data_net, service_net]
     depends_on:
       db:
-        condition: service_healthy
-      redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/ready', timeout=3)"]
@@ -116,7 +100,7 @@ services:
       - no-new-privileges:true
 networks:
   data_net:
-    internal: false  # API needs SMTP egress. Never expose service ports externally.
+    internal: false  # API egress is needed only when email provisioning is explicitly enabled.
   service_net:
     internal: false
   edge_net:

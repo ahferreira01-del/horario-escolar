@@ -55,9 +55,14 @@ def new_invitation_token() -> str:
     return secrets.token_urlsafe(36)
 
 
+def new_temporary_password() -> str:
+    """Gera uma credencial de uso inicial; não a persiste nem a registra."""
+    return secrets.token_urlsafe(32)
+
+
 def make_session(user: User):
     now = datetime.now(timezone.utc)
-    payload = {"sub": user.id, "iat": now, "exp": now + timedelta(minutes=settings.session_max_minutes), "csrf": secrets.token_urlsafe(24), "type": "session"}
+    payload = {"sub": user.id, "iat": now, "exp": now + timedelta(minutes=settings.session_max_minutes), "csrf": secrets.token_urlsafe(24), "type": "session", "sv": user.session_version}
     return jwt.encode(payload, settings.session_secret, algorithm=ALGORITHM), payload["csrf"]
 
 
@@ -78,6 +83,12 @@ def current_user(request: Request, db: Session = Depends(get_db)) -> User:
     user = db.get(User, payload["sub"])
     if not user or not user.is_active:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Conta inativa.")
+    if payload.get("sv", 0) != user.session_version:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Sessão inválida ou revogada.")
+    if user.must_change_password and request.url.path not in {
+        "/api/auth/me", "/api/auth/logout", "/api/auth/change-password",
+    }:
+        raise HTTPException(status.HTTP_423_LOCKED, "Defina uma nova senha antes de continuar.")
     request.state.session_claims = payload
     bind_context(db, user.id)
     return user

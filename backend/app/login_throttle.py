@@ -1,84 +1,138 @@
-"""Limitador de login compartilhado por Redis, sem usar IP/headers falsificáveis.
+"""Limitador de login compartilhado e atômico no PostgreSQL.
 
-Em produção, toda tentativa de autenticação é contabilizada atomicamente
-por e-mail normalizado e HMAC com segredo do servidor. Um cliente ou proxy
-pode alterar cabeçalhos X-Forwarded-For; por isso NÃO são usados como chave.
-O bloqueio por conta também pode ser explorado para negação de acesso,
-por isso o tempo é curto e erros jamais revelam existência de usuário.
+Somente um HMAC do e-mail normalizado é persistido. A tabela é acessível ao
+runtime por uma role própria e tem RLS forçado. Cada operação é confirmada
+antes da verificação de credenciais para que tentativas falhas sobrevivam à
+resposta HTTP e a reinícios de instância.
 """
-from functools import lru_cache
+from datetime import datetime, timedelta, timezone
 import hashlib
 import hmac
 
 from fastapi import HTTPException
-from redis import Redis, exceptions as redis_errors
+from sqlalchemy import case, delete, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+
 from .config import settings
+from .models import AuthLoginLimit
 
 WINDOW_SECONDS = 300
 MAX_ATTEMPTS = 8
-LUA_RECORD_ATTEMPT = """
-local attempts = redis.call('INCR', KEYS[1])
-if attempts == 1 then
-    redis.call('EXPIRE', KEYS[1], ARGV[1])
-end
-local seconds_left = redis.call('TTL', KEYS[1])
-return {attempts, seconds_left}
-"""
-
-
-@lru_cache(maxsize=4)
-def _redis_client(redis_url: str) -> Redis:
-    return Redis.from_url(redis_url, socket_connect_timeout=1,
-                          socket_timeout=1, decode_responses=True)
+CLEANUP_BATCH_SIZE = 50
 
 
 def _identity_key(email: str) -> str:
     normalized = email.strip().lower()
-    digest = hmac.new(settings.session_secret.encode("utf-8"),
-                      normalized.encode("utf-8"), hashlib.sha256).hexdigest()
-    return "horario:auth:v1:" + digest
-
-
-def _client() -> Redis:
-    if not settings.auth_rate_limit_redis_url:
-        # Mesmo se o validador de config foi contornado, negar acesso.
-        raise HTTPException(503, "Autenticação temporariamente indisponível.")
-    return _redis_client(settings.auth_rate_limit_redis_url)
+    return hmac.new(
+        settings.session_secret.encode("utf-8"),
+        normalized.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
 
 
 def _unavailable() -> HTTPException:
     return HTTPException(503, "Autenticação temporariamente indisponível.")
 
 
-def check_login_attempt(email: str) -> None:
+def check_login_attempt(email: str, db) -> None:
     if settings.environment != "production":
         return
     try:
-        attempts, ttl = _client().eval(
-            LUA_RECORD_ATTEMPT, 1, _identity_key(email), WINDOW_SECONDS)
-    except (redis_errors.RedisError, ConnectionError, TimeoutError, ValueError) as exc:
+        if db.get_bind().dialect.name != "postgresql":
+            raise RuntimeError("O limitador de produção exige PostgreSQL.")
+
+        now = datetime.now(timezone.utc)
+        expires_at = now + timedelta(seconds=WINDOW_SECONDS)
+
+        # A limpeza é limitada e oportunista; não afeta os contadores ativos.
+        expired = (
+            select(AuthLoginLimit.identity_hash)
+            .where(AuthLoginLimit.expires_at <= now)
+            .order_by(AuthLoginLimit.expires_at)
+            .limit(CLEANUP_BATCH_SIZE)
+            .with_for_update(skip_locked=True)
+        )
+        db.execute(
+            delete(AuthLoginLimit).where(AuthLoginLimit.identity_hash.in_(expired))
+        )
+
+        statement = (
+            pg_insert(AuthLoginLimit)
+            .values(
+                identity_hash=_identity_key(email),
+                attempts=1,
+                window_started_at=now,
+                expires_at=expires_at,
+            )
+            .on_conflict_do_update(
+                index_elements=[AuthLoginLimit.identity_hash],
+                set_={
+                    "attempts": case(
+                        (AuthLoginLimit.expires_at <= now, 1),
+                        else_=AuthLoginLimit.attempts + 1,
+                    ),
+                    "window_started_at": case(
+                        (AuthLoginLimit.expires_at <= now, now),
+                        else_=AuthLoginLimit.window_started_at,
+                    ),
+                    "expires_at": case(
+                        (AuthLoginLimit.expires_at <= now, expires_at),
+                        else_=AuthLoginLimit.expires_at,
+                    ),
+                },
+            )
+            .returning(AuthLoginLimit.attempts, AuthLoginLimit.expires_at)
+        )
+        attempts, expiry = db.execute(statement).one()
+        db.commit()
+    except Exception as exc:
+        try:
+            db.rollback()
+        except Exception:
+            pass
         raise _unavailable() from exc
-    if int(attempts) > MAX_ATTEMPTS:
-        retry_after = max(1, int(ttl))
-        raise HTTPException(429, "Muitas tentativas. Aguarde alguns minutos.",
-                            headers={"Retry-After": str(retry_after)})
+
+    if attempts > MAX_ATTEMPTS:
+        seconds_left = max(
+            1, int((expiry - datetime.now(timezone.utc)).total_seconds())
+        )
+        raise HTTPException(
+            429,
+            "Muitas tentativas. Aguarde alguns minutos.",
+            headers={"Retry-After": str(seconds_left)},
+        )
 
 
-def clear_successful_login(email: str) -> None:
+def clear_successful_login(email: str, db) -> None:
     if settings.environment != "production":
         return
     try:
-        _client().delete(_identity_key(email))
-    except (redis_errors.RedisError, ConnectionError, TimeoutError) as exc:
+        if db.get_bind().dialect.name != "postgresql":
+            raise RuntimeError("O limitador de produção exige PostgreSQL.")
+        db.execute(
+            delete(AuthLoginLimit).where(
+                AuthLoginLimit.identity_hash == _identity_key(email)
+            )
+        )
+        db.commit()
+    except Exception as exc:
+        try:
+            db.rollback()
+        except Exception:
+            pass
         raise _unavailable() from exc
 
 
 def check_auth_backend() -> None:
-    """Readiness de produção: login não fica disponível se Redis falhar."""
+    """Readiness fails closed if the shared PostgreSQL counter table is unusable."""
     if settings.environment != "production":
         return
     try:
-        if not _client().ping():
-            raise _unavailable()
-    except (redis_errors.RedisError, ConnectionError, TimeoutError) as exc:
+        from .database import engine
+
+        if engine.dialect.name != "postgresql":
+            raise RuntimeError("O limitador de produção exige PostgreSQL.")
+        with engine.connect() as connection:
+            connection.execute(select(AuthLoginLimit.identity_hash).limit(0))
+    except Exception as exc:
         raise _unavailable() from exc

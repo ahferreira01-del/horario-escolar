@@ -1,3 +1,4 @@
+"""Testes unitários auxiliares com SQLite em memória; não comprovam RLS ou integração."""
 import urllib.parse
 import pytest
 from fastapi.testclient import TestClient
@@ -5,10 +6,12 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 from app import database
+from app.config import settings
 from app.database import Base
-from app.models import User, Membership, School, Teacher, TeacherSchool, Tenant
+from app.models import User, Membership, School, Teacher, TeacherSchool, Tenant, AuditLog
 from app.main import app
-from app.security import hash_password
+from app import main as main_module
+from app.security import hash_password, verify_password
 
 
 @pytest.fixture
@@ -17,6 +20,8 @@ def context(monkeypatch):
     Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine, expire_on_commit=False)
     monkeypatch.setattr(database, "SessionLocal", Session)
+    # Keep legacy invitation acceptance tests explicit; production defaults to manual provisioning.
+    monkeypatch.setattr(settings, "user_provisioning_mode", "email")
     with Session() as db:
         db.add(User(email="root@example.com", name="Root", password_hash=hash_password("Senha-muito-forte-123"), is_platform_admin=True))
         db.commit()
@@ -37,10 +42,23 @@ def tenant_with_admin(client, suffix):
                     json={"name":f"Rede {suffix}","first_admin_email":f"diretor-{suffix}@example.com","first_admin_name":f"Diretor {suffix}"})
     assert r.status_code==201, r.text
     tenant_id = r.json()["id"]
-    parsed = urllib.parse.parse_qs(urllib.parse.urlsplit(r.json()["dev_invitation_url"]).query)
-    r = client.post("/api/auth/accept-invitation",json={"tenant_id":tenant_id,"token":parsed["token"][0],"name":"Diretor","password":"Senha-forte-diretor-123"})
-    assert r.status_code==200, r.text
-    h={"X-CSRF-Token":r.json()["csrf"]}
+    if "dev_invitation_url" in r.json():
+        parsed = urllib.parse.parse_qs(urllib.parse.urlsplit(r.json()["dev_invitation_url"]).query)
+        r = client.post("/api/auth/accept-invitation",json={"tenant_id":tenant_id,"token":parsed["token"][0],"name":"Diretor","password":"Senha-forte-diretor-123"})
+        assert r.status_code==200, r.text
+        h={"X-CSRF-Token":r.json()["csrf"]}
+    else:
+        first_admin = r.json()["first_admin"]
+        assert first_admin["created_account"] is True
+        temporary_password = first_admin["temporary_password"]
+        assert temporary_password and len(temporary_password) >= 20
+        h = login(client, f"diretor-{suffix}@example.com", temporary_password)
+        changed = client.post("/api/auth/change-password", headers=h, json={
+            "new_password": "Senha-forte-diretor-123",
+            "confirm_password": "Senha-forte-diretor-123",
+        })
+        assert changed.status_code == 200, changed.text
+        h = {"X-CSRF-Token": changed.json()["csrf"]}
     return tenant_id, h
 
 
@@ -53,12 +71,31 @@ def school(client, tenant_id, h, name="Centro"):
 def invitation(client, tenant, h, role, school_id, email, teacher_id=None):
     roles=client.get(f"/api/tenants/{tenant}/roles").json()
     role_id=next(r["id"] for r in roles if r["code"]==role)
+    if settings.user_provisioning_mode.strip().lower() == "manual":
+        # The isolated PostgreSQL integration tests exercise the new API
+        # instead of expecting an invitation which is disabled in this mode.
+        assert teacher_id is None, "Teacher identity linking needs its own manual test"
+        r=client.post(f"/api/tenants/{tenant}/users",headers=h,json={
+            "name": email.split("@")[0], "email": email, "role_id": role_id,
+            "school_id": school_id, "is_active": True,
+        })
+        assert r.status_code==201, r.text
+        assert r.json()["created_account"] is True
+        return {"email": email, "temporary_password": r.json()["temporary_password"]}
     r=client.post(f"/api/tenants/{tenant}/invitations",headers=h,json={"email":email,"role_id":role_id,"school_id":school_id,"teacher_id":teacher_id})
     assert r.status_code==201, r.text
     return urllib.parse.parse_qs(urllib.parse.urlsplit(r.json()["dev_invitation_url"]).query)["token"][0]
 
 
 def accept(client, tenant, token, name="Usuário"):
+    if isinstance(token, dict):
+        headers=login(client, token["email"], token["temporary_password"])
+        changed=client.post("/api/auth/change-password",headers=headers,json={
+            "new_password":"senha-super-segura-123",
+            "confirm_password":"senha-super-segura-123",
+        })
+        assert changed.status_code==200, changed.text
+        return {"X-CSRF-Token":changed.json()["csrf"]}
     r=client.post("/api/auth/accept-invitation",json={"tenant_id":tenant,"token":token,"name":name,"password":"senha-super-segura-123"})
     assert r.status_code==200, r.text
     return {"X-CSRF-Token":r.json()["csrf"]}

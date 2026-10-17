@@ -14,7 +14,6 @@ def cfg(**overrides):
         "public_app_url":"https://horarios.example.org",
         "cookie_secure":True,
         "session_max_minutes":120,
-        "auth_rate_limit_redis_url":"redis://:test-redis-password-123@redis:6379/0",
         "smtp_host":"smtp.example.org",
         "smtp_port":587,
         "smtp_from":"nao-responder@example.org",
@@ -78,7 +77,14 @@ def test_production_requires_secure_cookies():
 ])
 def test_production_refuses_incomplete_smtp(overrides):
     with pytest.raises(RuntimeError,match="SMTP"):
-        validate_production_configuration(cfg(**overrides))
+        validate_production_configuration(cfg(user_provisioning_mode="email", **overrides))
+
+
+def test_production_manual_provisioning_does_not_require_smtp():
+    assert validate_production_configuration(cfg(
+        user_provisioning_mode="manual", smtp_host="", smtp_from="",
+        smtp_user="", smtp_password="",
+    )) is None
 
 
 @pytest.mark.parametrize("minutes",[0,4,1441])
@@ -96,14 +102,6 @@ def test_development_does_not_require_smtp_or_https():
     )) is None
 
 
-@pytest.mark.parametrize("bad_url", [
-    "", "redis://redis:6379/0",
-    "redis://redis:6379/0?password=secret",
-    "redis://:pass@redis:70000/0",
-    "redis://:pass@redis:6379/3",
-    "http://:pass@redis:6379/0",
-    "redis://:pass@external-host.example.org:6379/0",
-])
-def test_production_requires_authenticated_redis(bad_url):
-    with pytest.raises((RuntimeError,ValueError), match="Redis|AUTH_RATE_LIMIT_REDIS_URL|Port"):
-        validate_production_configuration(cfg(auth_rate_limit_redis_url=bad_url))
+def test_production_does_not_require_external_redis_configuration():
+    assert validate_production_configuration(cfg()) is None
+    assert not hasattr(cfg(), "auth_rate_limit_redis_url")

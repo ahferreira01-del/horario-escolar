@@ -18,7 +18,7 @@ def test_fresh_schema_alembic_sqlite(tmp_path):
     assert {'tenants', 'users', 'schools', 'teachers', 'grade_proposals', 'published_grades', 'published_lessons', 'published_classes',
             'academic_years', 'teaching_assignments', 'alembic_version'} <= tables
     with engine.connect() as c:
-        assert c.scalar(text('SELECT version_num FROM alembic_version')) == '0003'
+        assert c.scalar(text('SELECT version_num FROM alembic_version')) == '0005'
 
 
 def test_rls_migration_covers_every_tenant_table():
@@ -71,7 +71,7 @@ def test_postgres_role_guard_denies_superuser_and_owner():
             if 'FROM pg_attribute' in sql:
                 return Rows([(t,) for t in RLS_TABLES])
             raise AssertionError(sql)
-        def scalar(self, stmt): return '0003'
+        def scalar(self, stmt): return '0005'
     class DummyEngine:
         class dialect: name='postgresql'
         def __init__(self, su=False, owner='horario_owner'):

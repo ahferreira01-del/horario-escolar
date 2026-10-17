@@ -152,3 +152,124 @@ def test_assignment_duplicate_and_deletion(context):
     assert len(client.get(b+f"/classes/{c}/assignments").json())==1
     assert client.delete(b+f"/classes/{c}/assignments/{r.json()['id']}",headers=h).status_code==200
     assert len(client.get(b+f"/classes/{c}/assignments").json())==0
+
+
+def test_four_fifty_minute_periods_with_recess(context):
+    """Quatro aulas exatas; 08:40–09:00 não é período agendável."""
+    client, _ = context
+    tenant_id, h = tenant_with_admin(client, "quatro-periodos-50min")
+    school_id = school(client, tenant_id, h)
+    base = pfx(tenant_id, school_id)
+    year_id, first_subject, class_id = configure(client, tenant_id, school_id, h)
+    periods = [
+        {"weekday": 0, "position": 1, "start": "07:00", "end": "07:50", "shift": "manha"},
+        {"weekday": 0, "position": 2, "start": "07:50", "end": "08:40", "shift": "manha"},
+        {"weekday": 0, "position": 3, "start": "09:00", "end": "09:50", "shift": "manha"},
+        {"weekday": 0, "position": 4, "start": "09:50", "end": "10:40", "shift": "manha"},
+    ]
+    uri = base + f"/classes/{class_id}/periods"
+    saved = client.put(uri, headers=h, json={"periods": periods})
+    assert saved.status_code == 200, saved.text
+    persisted = client.get(uri)
+    assert persisted.status_code == 200
+    assert persisted.json() == periods
+    assert sum(
+        (int(p["end"][:2]) * 60 + int(p["end"][3:]))
+        - (int(p["start"][:2]) * 60 + int(p["start"][3:]))
+        for p in persisted.json()
+    ) == 200
+
+    # A segunda aula acaba às 08:40; não há slot até 09:00.
+    assert all(not (p["start"] < "09:00" and p["end"] > "08:40")
+               for p in persisted.json())
+
+    teacher_id = teacher(client, tenant_id, school_id, h)
+    teacher_availability = client.put(
+        f"/api/tenants/{tenant_id}/teachers/{teacher_id}/availability",
+        headers=h,
+        json={"intervals": [{"weekday": 0, "start": "07:00", "end": "10:40"}]},
+    )
+    assert teacher_availability.status_code == 200, teacher_availability.text
+
+    subjects = [first_subject]
+    for name in ("Português", "Ciências", "História"):
+        subject = client.post(base + "/subjects", headers=h, json={"name": name})
+        assert subject.status_code == 201, subject.text
+        subjects.append(subject.json()["id"])
+    for subject_id in subjects:
+        inserted = assign(client, base, class_id, subject_id, teacher_id, h, lessons=1)
+        assert inserted.status_code == 201, inserted.text
+
+    response = client.post(base + "/preview", headers=h, json={
+        "academic_year_id": year_id, "profile": "equilibrado", "time_limit": 5,
+    })
+    assert response.status_code == 200, response.text
+    preview = response.json()
+    assert preview["result"] == "complete", preview.get("pending")
+    assert preview["total_required"] == 4
+    assert preview["total_assigned"] == 4
+    assert preview["total_assigned_minutes"] == 200
+    assert preview["conflicts"] == 0
+    assert {
+        (a["day"], a["order"], a["start"], a["end"])
+        for a in preview["assignments"]
+    } == {
+        ("Seg", 1, "07:00", "07:50"),
+        ("Seg", 2, "07:50", "08:40"),
+        ("Seg", 3, "09:00", "09:50"),
+        ("Seg", 4, "09:50", "10:40"),
+    }
+
+    # Horários inválidos não podem sobrescrever a grade já persistida.
+    invalid_overlap = [
+        {**periods[0]},
+        {**periods[1], "start": "07:40"},
+        periods[2],
+        periods[3],
+    ]
+    assert client.put(uri, headers=h, json={"periods": invalid_overlap}).status_code == 422
+    invalid_duplicate = [periods[0], {**periods[1], "position": 1}]
+    assert client.put(uri, headers=h, json={"periods": invalid_duplicate}).status_code == 422
+    assert client.get(uri).json() == periods
+
+
+def test_same_teacher_cannot_overlap_two_classes_in_preview(context):
+    """Duas turmas simultâneas não podem usar o mesmo docente."""
+    client, _ = context
+    tenant_id, h = tenant_with_admin(client, "conflito-turmas-50min")
+    school_id = school(client, tenant_id, h)
+    base = pfx(tenant_id, school_id)
+    year_id, subject_id, first_class_id = configure(
+        client, tenant_id, school_id, h,
+    )
+    second = client.post(base + "/classes", headers=h, json={
+        "academic_year_id": year_id, "name": "6º Ano B", "students": 25,
+    })
+    assert second.status_code == 201, second.text
+    second_class_id = second.json()["id"]
+    period = {"weekday": 0, "position": 1, "start": "07:00",
+              "end": "07:50", "shift": "manha"}
+    for cls in (first_class_id, second_class_id):
+        saved = client.put(
+            base + f"/classes/{cls}/periods",
+            headers=h, json={"periods": [period]},
+        )
+        assert saved.status_code == 200, saved.text
+    teacher_id = teacher(client, tenant_id, school_id, h)
+    assert client.put(
+        f"/api/tenants/{tenant_id}/teachers/{teacher_id}/availability",
+        headers=h,
+        json={"intervals": [{"weekday": 0, "start": "07:00", "end": "07:50"}]},
+    ).status_code == 200
+    for cls in (first_class_id, second_class_id):
+        assert assign(client, base, cls, subject_id, teacher_id, h, lessons=1).status_code == 201
+    result = client.post(base + "/preview", headers=h, json={
+        "academic_year_id": year_id, "time_limit": 5,
+    })
+    assert result.status_code == 200, result.text
+    preview = result.json()
+    assert preview["total_required"] == 2
+    assert preview["total_assigned"] == 1
+    assert preview["result"] == "partial"
+    assert preview["conflicts"] == 0
+    assert len(preview["assignments"]) == 1
